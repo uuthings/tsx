@@ -1,10 +1,13 @@
 import io
 import json
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest import mock
+import urllib.error
+import urllib.request
 
 import boto3
 from botocore.exceptions import ReadTimeoutError
@@ -53,6 +56,12 @@ class FeedTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "already exists"):
             feed.compose(xml(), xml(), version="1.3.8", build="15", download_url=feed.BASE + "/qa/a.dmg",
                          published_at="2026-10-23T12:00:00Z", notes={"notes": "text"})
+
+    def test_rejects_build_rollback_and_non_numeric_history(self):
+        for previous in (xml("16", "1.4.0"), xml("build-14", "1.3.7")):
+            with self.subTest(previous=previous), self.assertRaisesRegex(ValueError, "Build"):
+                feed.compose(xml(), previous, version="1.3.8", build="15", download_url=feed.BASE + "/qa/a.dmg",
+                             published_at="2026-10-23T12:00:00Z", notes={"notes": "text"})
 
     def test_rejects_unbounded_or_entity_feed_and_unzoned_time(self):
         for data in (b"<!DOCTYPE rss><rss><channel/></rss>", b"x" * (2 * 1024 * 1024 + 1)):
@@ -178,6 +187,57 @@ class UploadTests(unittest.TestCase):
                     self.assertEqual(len(events), 6)
 
 
+    def test_stable_requires_legacy_route_before_upload_and_persists_post_publish_failure(self):
+        directory = Path(self.directory.name)
+        filename = "TSX-1.3.8-macOS-universal.dmg"
+        prefix = "tsx/macos/releases/1.3.8-15/"
+        sums = directory / "SHA256SUMS.txt"
+        checksum = r2.archive_evidence.sha(self.path)
+        sums.write_text(f"{checksum}  {filename}\n")
+        appcast = directory / "appcast.xml"
+        appcast.write_bytes(feed.compose(xml(), None, version="1.3.8", build="15",
+                           download_url="https://updates.uuthings.com/" + prefix + filename,
+                           published_at="2026-10-23T12:00:00Z", notes={"notes": "fixture"}))
+        plan = {"channel": "stable", "bucket": "updates", "account_id": "fixture", "build": "15", "version": "1.3.8",
+                "expected_etag": None, "feed_key": "tsx/macos/stable/appcast.xml", "feed_sha256": r2.archive_evidence.sha(appcast),
+                "objects": [{"key": prefix + filename, "path": str(self.path), "type": r2.DMG_TYPE, "sha256": checksum},
+                            {"key": prefix + sums.name, "path": str(sums), "type": r2.TEXT_TYPE,
+                             "sha256": r2.archive_evidence.sha(sums)}]}
+        (directory / "plan.json").write_text(json.dumps(plan))
+        settings = {"bucket": "updates", "account_id": "fixture", "public_origin": "https://updates.uuthings.com",
+                    "audit_keychain_service": "fixture", "keychain_account": "fixture"}
+        for stage in ("preflight-failure", "post-publish-failure", "success"):
+            with self.subTest(stage=stage), mock.patch.object(r2, "keychain", return_value="fixture"), \
+                 mock.patch.object(r2.cloudflare_audit, "audit", return_value={}), \
+                 mock.patch.object(r2, "sparkle_verify"), \
+                 mock.patch.object(r2, "object_state", return_value=(None, None)), \
+                 mock.patch.object(r2, "put_immutable") as put, \
+                 mock.patch.object(r2, "put_manifest", return_value='"new"') as manifest, \
+                 mock.patch.object(r2, "public_verify", return_value={}), \
+                 mock.patch.object(r2, "check_legacy_redirect", side_effect=RuntimeError("legacy unavailable") if stage == "preflight-failure" else None), \
+                 mock.patch.object(r2, "verify_entrypoints", side_effect=RuntimeError("legacy changed") if stage == "post-publish-failure" else None,
+                                   return_value={"stable": {}, "legacy": {}}), mock.patch("sys.stdout", new=io.StringIO()) as output:
+                before = set(directory.glob("receipt-*.json"))
+                args = SimpleNamespace(directory=directory, confirm_production=True)
+                if stage == "success":
+                    r2.upload(args, settings, self.s3)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        r2.upload(args, settings, self.s3)
+                    self.assertNotIn("Uploaded and verified", output.getvalue())
+                after = set(directory.glob("receipt-*.json")) - before
+                if stage == "preflight-failure":
+                    put.assert_not_called()
+                    manifest.assert_not_called()
+                    self.assertFalse(after)
+                else:
+                    self.assertEqual(put.call_count, 2)
+                    manifest.assert_called_once()
+                    self.assertEqual(len(after), 1)
+                    receipt = json.loads(after.pop().read_text())
+                    self.assertEqual(receipt["state"], "complete" if stage == "success" else "manifest-published-verification-failed")
+
+
 class PublicReadTests(unittest.TestCase):
     def setUp(self):
         directory = TemporaryDirectory()
@@ -218,6 +278,62 @@ class PublicReadTests(unittest.TestCase):
         for data in (b"changed", b"fixture-extra"):
             with self.subTest(data=data), self.assertRaisesRegex(RuntimeError, "Public"):
                 self.verify(self.response(data))
+
+    def test_legacy_probe_rejects_old_xml_or_wrong_redirect_target(self):
+        for status, target in [(200, None), (302, "https://example.invalid/feed.xml"), (301, feed.FEED)]:
+            response = self.response()
+            response.status = status
+            response.headers["Location"] = target
+            with self.subTest(status=status, target=target), mock.patch.object(r2.urllib.request, "build_opener") as opener:
+                opener.return_value.open.return_value = response
+                with self.assertRaisesRegex(RuntimeError, "redirect"):
+                    r2.check_legacy_redirect()
+
+    def test_legacy_probe_accepts_http_error_302_only_for_exact_canonical_url(self):
+        with mock.patch.object(r2.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = urllib.error.HTTPError(
+                feed.LEGACY_FEED, 302, "Found", {"Location": feed.FEED}, io.BytesIO())
+            result = r2.check_legacy_redirect()
+        self.assertEqual(result["location"], feed.FEED)
+
+    def test_legacy_follow_allows_one_exact_hop_and_rejects_loops_or_other_origins(self):
+        handler = r2.LegacyFeedRedirect()
+        request = urllib.request.Request(feed.LEGACY_FEED)
+        redirected = handler.redirect_request(request, None, 302, "Found", {}, feed.FEED)
+        self.assertEqual(redirected.full_url, feed.FEED)
+        for source, code, target in [(redirected, 302, feed.FEED), (request, 302, feed.FEED)]:
+            with self.assertRaisesRegex(RuntimeError, "Unexpected"):
+                handler.redirect_request(source, None, code, "Found", {}, target)
+        for code, target in [(301, feed.FEED), (302, "https://example.invalid/")]:
+            with self.assertRaisesRegex(RuntimeError, "Unexpected"):
+                r2.LegacyFeedRedirect().redirect_request(request, None, code, "Found", {}, target)
+
+    def test_legacy_follow_requires_same_signed_feed_bytes_and_uncached_response(self):
+        for data, headers, succeeds in [(b"fixture", {}, True), (b"changed", {}, False),
+                                        (b"fixture", {"CF-Cache-Status": "HIT"}, False)]:
+            response = self.response(data, **{"Content-Type": r2.XML_TYPE, "Cache-Control": "no-cache", **headers})
+            response.geturl = lambda: feed.FEED
+            def opener(handler):
+                handler.redirects = 1
+                return SimpleNamespace(open=lambda *args, **kwargs: response)
+            with self.subTest(data=data, headers=headers), mock.patch.object(r2, "sparkle_verify"), \
+                 mock.patch.object(r2, "public_verify", return_value={"sha256": "fixture"}), \
+                 mock.patch.object(r2, "check_legacy_redirect", return_value={}), \
+                 mock.patch.object(r2.urllib.request, "build_opener", side_effect=opener):
+                if succeeds:
+                    self.assertEqual(r2.verify_entrypoints(self.path)["legacy"]["sha256"], r2.archive_evidence.sha(self.path))
+                else:
+                    with self.assertRaises(RuntimeError):
+                        r2.verify_entrypoints(self.path)
+
+    def test_read_only_entrypoint_command_does_not_load_publisher_credentials(self):
+        output = self.path.parent / "entrypoints.json"
+        with mock.patch.object(sys, "argv", ["r2_updates.py", "verify-entrypoints", "--feed", str(self.path), "--output", str(output)]), \
+             mock.patch.object(r2, "verify_entrypoints", return_value={"legacy": {}, "stable": {}}), \
+             mock.patch.object(r2, "client", side_effect=AssertionError("Credentials must not be loaded")), \
+             mock.patch("sys.stdout", new=io.StringIO()):
+            r2.main()
+        self.assertIn("entrypoints", json.loads(output.read_text()))
 
 
 class ConfigurationTests(unittest.TestCase):

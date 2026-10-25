@@ -10,9 +10,9 @@
   <a href="README.md">简体中文</a> · English
 </p>
 
-**TSX 1.3.7 · A free, open-source translation app for Mac.** This repository brings together application source, documentation, feedback, and official installers.
+**TSX 1.3.9 · A free, open-source translation app for Mac.** This repository brings together application source, documentation, feedback, and official installers.
 
-[Releases](https://github.com/TheoYuuu/tsx/releases) · [Usage guide](Docs/USAGE.md#english) · [Privacy and data](Docs/PRIVACY.md#english) · [Report an issue](https://github.com/TheoYuuu/tsx/issues/new/choose)
+[Releases](https://github.com/uuthings/tsx/releases) · [Usage guide](Docs/USAGE.md#english) · [Privacy and data](Docs/PRIVACY.md#english) · [Report an issue](https://github.com/uuthings/tsx/issues/new/choose)
 
 ## Translation that fits your workflow
 
@@ -34,7 +34,7 @@ See release notes for changes and known issues. Text selection depends on the so
 
 ## Downloads and updates
 
-Download **TSX-1.3.7-macOS-universal.dmg** from the [v1.3.7 release](https://github.com/TheoYuuu/tsx/releases/tag/v1.3.7), open it, and drag TSX into Applications. Official installers are signed with Developer ID and notarized by Apple.
+Download **TSX-1.3.9-macOS-universal.dmg** from the [v1.3.9 release](https://github.com/uuthings/tsx/releases/tag/v1.3.9), open it, and drag TSX into Applications. Official installers are signed with Developer ID and notarized by Apple.
 
 GitHub's automatic **Source code (zip / tar.gz)** archives contain the project source at that version. They are **not installable TSX applications**; download the installer attached to the release.
 
@@ -44,7 +44,7 @@ Choose Check for Updates in the app menu or Settings → About. The app checks a
 
 ## Feedback and project status
 
-Use [Issues](https://github.com/TheoYuuu/tsx/issues/new/choose) for bug reports and feature suggestions in Chinese or English. Search existing reports first and use examples without private information.
+Use [Issues](https://github.com/uuthings/tsx/issues/new/choose) for bug reports and feature suggestions in Chinese or English. Search existing reports first and use examples without private information.
 
 Official TSX releases will remain free of charge, with no paid features or subscription. Third-party services you configure may charge separately. The project is licensed under the [MIT License](LICENSE); third-party components retain their own licenses and notices.
 

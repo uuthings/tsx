@@ -2,7 +2,7 @@
 
 [返回首页](../README.md) · [English](#english)
 
-本说明对应当前源码，正式安装包见 Releases。需要 macOS 15 或更新版本；从 [GitHub Releases](https://github.com/TheoYuuu/tsx/releases/latest) 下载 DMG，打开后将 TSX 拖入 Applications。
+本说明对应当前源码，正式安装包见 Releases。需要 macOS 15 或更新版本；从 [GitHub Releases](https://github.com/uuthings/tsx/releases/latest) 下载 DMG，打开后将 TSX 拖入 Applications。
 
 下载时选择 Release 附件中的 `TSX-版本-macOS-universal.dmg`，同时包含 Apple silicon 与 Intel 架构；自动生成的 Source code 归档不是安装包。如需核对完整性，将同一版本的 DMG 和 `SHA256SUMS.txt` 放在同一目录，在该目录运行 `shasum -a 256 -c SHA256SUMS.txt`。摘要匹配不替代系统的开发者签名与公证检查。
 
@@ -54,17 +54,17 @@ API 服务使用自己的 API Key。选择预设厂商，或使用 New API／自
 
 ## 问题反馈
 
-遇到问题时，请在 [Issues](https://github.com/TheoYuuu/tsx/issues/new/choose) 中提供软件版本、macOS 版本、芯片类型、操作步骤、预期结果与实际结果。用自行构造的短文本复现即可，不需要提供真实私人内容、API Key 或完整账号信息。
+遇到问题时，请在 [Issues](https://github.com/uuthings/tsx/issues/new/choose) 中提供软件版本、macOS 版本、芯片类型、操作步骤、预期结果与实际结果。用自行构造的短文本复现即可，不需要提供真实私人内容、API Key 或完整账号信息。
 
 ## 软件更新
 
-可从 TSX 菜单或「设置 → 关于」手动检查更新和查看近期更新。关于页发现新版本后，点击「更新到 v…」即开始下载、安装和重启，进度在设置窗口展示，无需再次确认；主窗口的「发现新版本」入口可先查看更新说明，再点击「立即更新」。每次启动会检查新版本；自动更新默认关闭，仅提示可用版本。开启后将下载、安装并重启，升级后在主窗口展示一次更新内容。检查连接官网，下载与更新说明来自 GitHub。正文和截图不保存为历史，安装并重启前请复制需要保留的文字。
+可从 TSX 菜单或「设置 → 关于」手动检查更新和查看近期更新。关于页发现新版本后，点击「更新到 v…」即开始下载、安装和重启，进度在设置窗口展示，无需再次确认；主窗口的「发现新版本」入口可先查看更新说明，再点击「立即更新」。每次启动会检查新版本；自动更新默认关闭，仅提示可用版本。开启后将下载、安装并重启，升级后在主窗口展示一次更新内容。更新检查、安装包下载和近期更新内容由独立更新服务提供；近期更新与随包说明合并显示，点击完整发行说明链接时才打开 GitHub。正文和截图不保存为历史，安装并重启前请复制需要保留的文字。
 
 # English
 
 [Back to overview](../README.en.md)
 
-This guide covers the current source. Published installers require macOS 15 or later. Download the DMG from [GitHub Releases](https://github.com/TheoYuuu/tsx/releases/latest), open it, and drag TSX into Applications.
+This guide covers the current source. Published installers require macOS 15 or later. Download the DMG from [GitHub Releases](https://github.com/uuthings/tsx/releases/latest), open it, and drag TSX into Applications.
 
 Choose the `TSX-version-macOS-universal.dmg` release asset for Apple silicon or Intel. Automatically generated source-code archives are not installers. To check integrity, place the DMG and `SHA256SUMS.txt` from the same release in one directory and run `shasum -a 256 -c SHA256SUMS.txt` there. Matching checksums do not replace system checks of developer signatures and notarization.
 
@@ -116,8 +116,8 @@ Use Configure usage query on a service row to manage balance querying, intervals
 
 ## Reporting a problem
 
-Open an [issue](https://github.com/TheoYuuu/tsx/issues/new/choose) with your TSX version, macOS version, chip type, steps, expected result, and actual result. Use a short synthetic example without private text, API keys, or complete account details.
+Open an [issue](https://github.com/uuthings/tsx/issues/new/choose) with your TSX version, macOS version, chip type, steps, expected result, and actual result. Use a short synthetic example without private text, API keys, or complete account details.
 
 ## Software updates
 
-Use Check for Updates in the TSX menu or Settings → About, where recent release notes are also available. Once a new version is found, clicking Update to v… on the About page starts downloading, installation, and restart without another confirmation; progress stays in Settings. The main window's New Version Available entry lets you read the release notes before clicking Update Now. Launch checks run without automatic downloads by default. Enabling automatic updates allows downloading, installation, and restart. After upgrading, release notes appear once in the main window. Checks use the website; downloads and release history use GitHub. Copy text you want to keep before installing and restarting; translation text and screenshots are not saved as history.
+Use Check for Updates in the TSX menu or Settings → About, where recent release notes are also available. Once a new version is found, clicking Update to v… on the About page starts downloading, installation, and restart without another confirmation; progress stays in Settings. The main window's New Version Available entry lets you read the release notes before clicking Update Now. Launch checks run without automatic downloads by default. Enabling automatic updates allows downloading, installation, and restart. After upgrading, release notes appear once in the main window. An independent update service provides update checks, installer downloads, and recent release notes. Recent notes are merged with bundled notes; GitHub opens only when you click a full release-notes link. Copy text you want to keep before installing and restarting; translation text and screenshots are not saved as history.

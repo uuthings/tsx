@@ -1,8 +1,14 @@
 [
   {
+    "version": "1.3.9",
+    "notes": "## 中文\n\n- **新版本入口** 换上小巧的 New 标识，保留文字动效；整个按钮背景均可点击，移除多余的焦点外环。\n- **下载进度** 已知安装包大小时从 0% 显示实际下载进度，减少不确定进度动画造成的困惑。\n- **更新弹窗** 修复更新完成后按钮默认聚焦的问题，保留回车确认及键盘导航。\n- **正文留白** 微调原文与译文的内部间距，让文字与边缘保持更舒适的距离。\n\n## English\n\n- **Update entry** A compact New mark accompanies the existing text animation. The full button background is clickable, with the extra focus outline removed.\n- **Download progress** Once the installer size is known, downloads show actual progress starting at 0% instead of an indeterminate animation.\n- **Update dialogs** Fixed the confirmation button receiving focus by default after an update, while preserving Return confirmation and keyboard navigation.\n- **Text spacing** Refined the inner padding of the source and translation panes for more comfortable spacing around text.\n",
+    "url": "https://github.com/uuthings/tsx/releases/tag/v1.3.9"
+  },
+  {
     "version": "1.3.8",
-    "notes": "## 中文\n\n- **原文与译文朗读** 两侧新增小喇叭，使用 macOS 系统声音；点击朗读，再次点击立即停止，下次从头播放。默认不自动朗读，同一时间只播放一侧。\n- **英美口音切换** 英语口音直接显示，支持美式与英式切换并记住选择；朗读时显示声波动效，切换口音或修改文字会停止当前播放。\n- **更紧凑的内容区** 缩小两侧内容内边距，对齐语言选择、文字和操作按钮。\n- **独立更新服务** 更新清单与安装包改由 updates.uuthings.com 提供；近期更新使用已验签的清单内容。启动时后台检查失败不打扰，手动检查失败仍会提示。\n\n## English\n\n- **Read either text aloud** Speaker buttons use macOS system voices for the source and translation. Click to read, click again to stop, and start again from the beginning. Playback never starts automatically, and only one side plays at a time.\n- **US and UK accents** English accent choices are visible and remembered. Animated sound waves indicate playback; changing the accent or editing text stops it.\n- **More compact content panes** Reduced inner padding aligns language selectors, text and actions.\n- **Independent update service** Updates and installers are delivered through updates.uuthings.com. Recent updates use verified signed-feed content. Background launch-check failures stay quiet; manual-check failures still show feedback.\n",
-    "url": "https://github.com/uuthings/tsx/releases/tag/v1.3.8"
+    "notes": "## 中文\n\n- **原文与译文朗读** 两侧新增小喇叭，使用 macOS 系统声音；点击朗读，再次点击立即停止，下次从头播放。默认不自动朗读，同一时间只播放一侧。\n- **英美口音切换** 英语口音直接显示，支持美式与英式切换并记住选择；朗读时显示声波动效，切换口音或修改文字会停止当前播放。\n- **更紧凑的内容区** 缩小两侧内容内边距，对齐语言选择、文字和操作按钮。\n- **更安静的更新体验** 启动时检查更新失败不会打断使用；手动检查失败时会给出提示。\n\n## English\n\n- **Read either text aloud** Speaker buttons use macOS system voices for the source and translation. Click to read, click again to stop, and start again from the beginning. Playback never starts automatically, and only one side plays at a time.\n- **US and UK accents** English accent choices are visible and remembered. Animated sound waves indicate playback; changing the accent or editing text stops it.\n- **More compact content panes** Reduced inner padding aligns language selectors, text and actions.\n- **Quieter update checks** Failed update checks at startup do not interrupt your work. Manual checks still show feedback if they fail.\n",
+    "url": "https://github.com/uuthings/tsx/releases/tag/v1.3.8",
+    "publishedAt": "2026-10-23T17:48:38Z"
   },
   {
     "version": "1.3.7",

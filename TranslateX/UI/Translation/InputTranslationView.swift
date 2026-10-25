@@ -198,9 +198,8 @@ private struct MainUpdateEntry: View {
         Button(action: showUpdate) {
             TimelineView(.animation(minimumInterval: 1 / 60, paused: !animates || !waving)) { context in
                 let elapsed = context.date.timeIntervalSince(waveStarted)
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.system(size: 13, weight: .medium))
+                HStack(spacing: 5) {
+                    newMark
                         .offset(y: lift(index: 0, elapsed: elapsed))
                     HStack(spacing: 0) {
                         ForEach(Array(characters.enumerated()), id: \.offset) { index, character in
@@ -208,18 +207,28 @@ private struct MainUpdateEntry: View {
                                 .fixedSize()
                                 .offset(y: lift(index: index + 1, elapsed: elapsed))
                         }
-                    }.font(.system(size: 12, weight: .medium))
+                    }.font(.system(size: 12, weight: .medium)).frame(height: 18)
                 }
                 .fixedSize()
-                .padding(.horizontal, 9).padding(.vertical, 6)
+                .padding(.horizontal, 11).padding(.vertical, 6)
+                .frame(minHeight: 32)
+                .contentShape(RoundedRectangle(cornerRadius: 12))
                 .serviceDesignMetric("main.updateLabel")
             }
         }
         .buttonStyle(.plain)
         .foregroundStyle(p.accent)
-        .background(hovered ? p.accent.opacity(0.14) : p.accentSoft, in: RoundedRectangle(cornerRadius: 7))
+        .background(p.color(theme.isDark ? (hovered ? 0x344761 : 0x2b384c)
+                                        : (hovered ? 0xdbe8fa : 0xe4edfb)),
+                    in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(theme.increaseContrast ? p.line : p.color(theme.isDark ? 0x45648c : 0xc5d8f7), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
         .fixedSize()
         .updateDialogKeyboardAction(action: showUpdate)
+        .focusEffectDisabled()
         .focused($focused)
         .onHover { hovered = $0 }
         .translateXControlCursor()
@@ -251,6 +260,22 @@ private struct MainUpdateEntry: View {
                 }
             } catch { waving = false }
         }
+    }
+
+    private var newMark: some View {
+        Image("UpdateNewMark")
+            .resizable().renderingMode(.template)
+            .foregroundStyle(.white)
+            .frame(width: 28, height: 15)
+            .background {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(LinearGradient(stops: [
+                        .init(color: p.color(theme.isDark ? 0x4c83ed : 0x3978e8), location: 0),
+                        .init(color: p.color(theme.isDark ? 0x8269e7 : 0x735be0), location: 0.62),
+                        .init(color: p.color(theme.isDark ? 0xa66cdd : 0x9b59d3), location: 1)
+                    ], startPoint: UnitPoint(x: 0, y: 0.32), endPoint: UnitPoint(x: 1, y: 0.68)))
+            }
+            .accessibilityHidden(true)
     }
 
     private func showUpdate() {

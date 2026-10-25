@@ -100,6 +100,7 @@
 		7AB8A0EEDF4A5B87D744986D /* TranslationSpeechControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615E4ABB918A0F9B13302404 /* TranslationSpeechControls.swift */; };
 		7AC9EEAD1B0A3A1AAFBFA37C /* TranslationServiceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CDFEB49589770E9644B760 /* TranslationServiceConfiguration.swift */; };
 		7BAC4128D140AD3054FFF4C4 /* RemoteTranslationError.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBDEDAE29D7BCB1586F3006F /* RemoteTranslationError.swift */; };
+		7BD78A27F7135C20C7183790 /* UpdateNewMarkNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2AAD82EBE0E3971D47A6769B /* UpdateNewMarkNotices.txt */; };
 		7E24A1893A0A05E0E8933C3F /* TranslationServiceLayoutProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE46B629FE3C50ED0A5DE81B /* TranslationServiceLayoutProbe.swift */; };
 		8054C4137FECECB8F4581075 /* CodexAccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B47B3115B81FEF7A4D84D91 /* CodexAccountSettingsView.swift */; };
 		8202EC0FB81955A8C3520139 /* TranslationServicePresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C36A8E8397E83E148CE1BFD8 /* TranslationServicePresetTests.swift */; };
@@ -248,6 +249,7 @@
 		2737E7D9812D0809C6CCF2C5 /* CaptureGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGeometry.swift; sourceTree = "<group>"; };
 		29047CF72DAC1DB7CDB62A06 /* KeychainInteraction.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = KeychainInteraction.c; sourceTree = "<group>"; };
 		29C7EAAC3881319AAAA1EB76 /* SelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionTests.swift; sourceTree = "<group>"; };
+		2AAD82EBE0E3971D47A6769B /* UpdateNewMarkNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = UpdateNewMarkNotices.txt; sourceTree = "<group>"; };
 		2AD5E221267922A03BD6955D /* DedicatedTranslationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DedicatedTranslationProvider.swift; sourceTree = "<group>"; };
 		2B47B3115B81FEF7A4D84D91 /* CodexAccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAccountSettingsView.swift; sourceTree = "<group>"; };
 		2EB47DBE2031A54CEF5D3397 /* TranslationServiceNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationServiceNavigationTests.swift; sourceTree = "<group>"; };
@@ -754,6 +756,7 @@
 				A991FE8123B7A8DEF86A5A76 /* ProviderLogoNotices.txt */,
 				D4C1A9D73F4F34F1B99B74FA /* PublishedReleaseNotes.json */,
 				B3810F0A13184BEB9D7757B7 /* ScreenshotIconNotices.txt */,
+				2AAD82EBE0E3971D47A6769B /* UpdateNewMarkNotices.txt */,
 				AEFF47D254FD37E3F3CD3477 /* InfoPlist.strings */,
 				1462A697DDBE6A9C1507C034 /* Localizable.strings */,
 			);
@@ -903,6 +906,7 @@
 				3D446C22A809CE64ADB15759 /* ProviderLogoNotices.txt in Resources */,
 				B340B25022F27E89982FEBFC /* PublishedReleaseNotes.json in Resources */,
 				265D097C90A1B34EFFDBD2F6 /* ScreenshotIconNotices.txt in Resources */,
+				7BD78A27F7135C20C7183790 /* UpdateNewMarkNotices.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1344,7 +1348,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/TranslateX.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 97K37J92QD;
 				ENABLE_DEBUG_DYLIB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1355,7 +1359,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.8;
+				MARKETING_VERSION = 1.3.9;
 				OTHER_CODE_SIGN_FLAGS = "$(inherited) --options runtime";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(TRANSLATEX_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_MODULE_NAME = TranslateX;
@@ -1374,7 +1378,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/TranslateX.entitlements;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 97K37J92QD;
 				ENABLE_DEBUG_DYLIB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1385,7 +1389,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.8;
+				MARKETING_VERSION = 1.3.9;
 				OTHER_CODE_SIGN_FLAGS = "$(inherited) --options runtime";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(TRANSLATEX_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_MODULE_NAME = TranslateX;

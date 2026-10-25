@@ -75,7 +75,7 @@ struct CompactUpdateDialog<Content: View, Footer: View>: View {
             }
             // Enter the dialog through its content, without highlighting an
             // action. Tab navigation and the default/cancel shortcuts stay live.
-            .focusable(updatePhase != nil || contentHeight > scrollHeight + 1, interactions: .edit)
+            .focusable(true, interactions: .edit)
             .focusEffectDisabled()
             .focused($contentFocused)
             .frame(height: scrollHeight).serviceDesignMetric("update.notes")
@@ -92,8 +92,8 @@ struct CompactUpdateDialog<Content: View, Footer: View>: View {
             return scrollTarget.scroll(press.key, modifiers: press.modifiers) ? .handled : .ignored
         }
         .serviceDesignMetric("update.dialog")
-        .onChange(of: updatePhase, initial: true) { _, phase in
-            if phase != nil { contentFocused = true }
+        .onChange(of: updatePhase, initial: true) { _, _ in
+            contentFocused = true
         }
     }
 }

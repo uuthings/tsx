@@ -7,7 +7,6 @@ struct ReleaseNotesView: View {
     var location: AppUpdateLocation = .settings
     var maximumHeight: CGFloat? = nil
     let onDismiss: () -> Void
-    @FocusState private var acknowledgementFocused: Bool
     private var p: ReleaseDialogPalette { .init(theme: theme) }
     private var entries: [AppRelease] {
         if case .installed(let version) = mode { return updates.releases.entries.filter { $0.version == version } }
@@ -66,11 +65,10 @@ struct ReleaseNotesView: View {
                 Button(L10n.string("Got it"), action: onDismiss)
                     .buttonStyle(ReleaseDialogButtonStyle(primary: true))
                     .updateDialogKeyboardAction(action: onDismiss)
-                    .keyboardShortcut(.defaultAction).focused($acknowledgementFocused)
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .id(mode)
-        .onAppear { acknowledgementFocused = true }
         .task { await updates.loadReleaseNotes() }
     }
 }

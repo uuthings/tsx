@@ -743,7 +743,11 @@ final class TranslationServiceVisualReview: NSObject {
                 }
                 if scene.hasPrefix("usage-") { await scrollUsageIntoView(scene: scene, window: window) }
                 // Update previews retain their real initial keyboard focus.
-                if !scene.hasPrefix("main-update") { window.makeFirstResponder(nil) }
+                // Modal reviews must retain production focus; clearing it here
+                // can conceal a button that is focused when the real App opens.
+                if !scene.hasPrefix("main-update") && !scene.hasPrefix("release-notes") {
+                    window.makeFirstResponder(nil)
+                }
                 try? await Task.sleep(for: .milliseconds(200))
                 let key = "\(scene)-\(theme)"
                 all[key] = frames.mapValues { ["x": $0.minX, "y": $0.minY, "width": $0.width, "height": $0.height] }

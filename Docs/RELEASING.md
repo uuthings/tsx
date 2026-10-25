@@ -1,6 +1,6 @@
 # 官网版发布流程
 
-当前源码采用 `updates.uuthings.com` 的 R2 更新清单与安装包，官网提供下载入口，GitHub Releases 可提供镜像。旧发行版的官网清单仍按原地址运行；完成源码接入不代表正式更新服务已经切换。发布需有明确授权；普通开发不自动递增版本、创建 Tag/Release 或推送。已测范围与限制见 [Validation.md](Validation.md)。
+当前源码采用 `updates.uuthings.com` 的 R2 更新清单与安装包，官网提供下载入口，GitHub Releases 可提供镜像。旧地址 `https://lumaxspace.com/updates/tsx/appcast.xml` 通过精确的 302 规则转接同一份正式清单；旧版无需修改设置。发布需有明确授权；普通开发不自动递增版本、创建 Tag/Release 或推送。已测范围与限制见 [Validation.md](Validation.md)。
 
 ## 手动发布的完整顺序
 
@@ -16,7 +16,7 @@
 8. **验证最终产物。** 核对 `release.json`、`verification.json`、App／DMG 公证记录、归档备份与最终摘要。挂载最终 DMG 检查 App，执行适用的安装和升级测试；需要保留旧版时不覆盖日常应用，并明确记录未执行真实替换。使用 `shasum -a 256 -c SHA256SUMS.txt` 时先进入 `artifacts/`。保留失败与未测项，不将模拟更新当成真实升级通过。
 9. **在 QA 通道验证同一最终包。** 按下方 R2 工具流程准备并上传 `qa/appcast.xml` 和独立批次目录中的 DMG。使用独立 macOS 测试账号或 VM，旧版安装在该账号自己的 `~/Applications`，不使用共享的 `/Applications`。先保存原来的 `SUFeedURL` 偏好，再临时指向 QA；完整验证下载、验签、替换、重启，测试后恢复原值（原本没有才删除）。第一轮可用旧版到候选版测试，不必等下一次发行。系统朗读等未发布功能也要覆盖。
 10. **正式授权后发布 R2。** 从同一最终 DMG 本地副本重新准备 stable；安装包不重建、不重签，路径改为 `releases/<版本>-<Build>/`，清单因地址和发布时间改变而重新生成并签名。先上传并核对安装包，再使用准备时读取的 ETag 条件更新 stable 清单。上传包必须 `PutObject + If-None-Match: *`，不以服务端 CopyObject 晋升候选，沿用已验证的本地副本条件上传。冲突必须停止重新审阅，不强行覆盖。
-11. **同步下载入口并留档。** 首次切换时，按单独发布授权将 GitHub 的主要下载版本更新为内置新地址的版本，并同步官网的最小版本、下载与隐私说明。后续 GitHub 镜像是否同步可按项目需要决定。旧官网 appcast 是否桥接另行决定，不自动修改两个网站。公开 Tag 必须指向实际构建的公开源码。正式发布后清除 QA 覆盖，再用新版“检查更新”验证内置 stable 地址、验签和“已是最新”；把实际线上清单、回读摘要、上传回执、源码映射及安装证据归档。清理 QA 对象前保留证据；不删除长期发行档案。
+11. **验收新旧更新入口并留档。** stable 发布前核对旧地址精确转接；发布后从新地址和旧地址分别读取本次签名清单，核对字节、版本、签名和缓存策略。两入口均通过才报告完成；若清单已写入但验收失败，保存部分发布状态，使用只读命令复核，不盲目重传。清除 QA 覆盖，再用新版“检查更新”验证内置 stable 地址、验签和“已是最新”。按授权同步 GitHub 镜像及官网的最小版本、下载与隐私说明；官网部署不再承担旧清单逐版同步。公开 Tag 必须指向实际构建的公开源码。归档线上清单、回读摘要、回执、源码映射和安装证据；清理 QA 对象前保留证据，不删除长期发行档案。
 
 下一次发版从第 1 步重新开始，使用新版本、新 Build 和新候选目录。有效的 Developer ID、Bundle ID、团队、Sparkle 密钥及 DMG 公证 profile 均沿用。Release、官网部署、App 公证和 DMG 公证是独立状态，不能用其中一个成功代替其余步骤。
 
@@ -107,6 +107,29 @@ python3 Tools/Release/release.py finish \
 - 记录实际环境、失败和未覆盖范围。发布说明准确描述系统要求及影响使用的已知问题，不作未经验证的兼容承诺。
 
 ## R2 服务配置与发布工具
+
+### 旧地址迁移与连续升级
+
+唯一正式清单为 `https://updates.uuthings.com/tsx/macos/stable/appcast.xml`。Cloudflare 在旧域名配置以下 Single Redirect，目标使用固定 HTTPS 地址，状态为 302，不保留查询字符串：
+
+```text
+(http.host eq "lumaxspace.com" and http.request.uri.path eq "/updates/tsx/appcast.xml")
+```
+
+规则仅匹配旧更新路径，不转接整个官网。旧客户端通过该入口获取当前最新兼容版本，可以跨过迁移版本；安装 1.3.8 及之后的版本后直接访问新地址。保留旧域名、TLS 和规则，不依据零散下载记录认定所有旧安装都已升级。未来迁移网站时仍须维护此入口，避免被整站跳转、安全验证或新路由覆盖。
+
+沿用既有 Bundle ID、Developer ID 和更新签名密钥。每次发布的新内部 Build 必须大于清单中所有既有 Build；显示版本与内部 Build 分别核对。保留正式清单历史与最低系统要求，使不兼容新系统要求的客户端仍能选择可用版本。
+
+迁移验收包括未经修改旧客户端访问旧入口、发现并安装实际发行包、验签和重启，以及升级后的客户端使用内置新地址。下一轮兼容性使用更高 Build 的签名 QA 候选验证；QA 覆盖必须恢复，测试版不能写入 stable。HTTP 回读、框架探测和实际安装分别记录。
+
+只读复核不读取 R2 发布凭据，也不执行上传：
+
+```sh
+.build/r2-venv/bin/python Tools/Release/r2_updates.py verify-entrypoints \
+  --feed /private/path/published-appcast.xml --output /private/path/new-entrypoint-evidence.json
+```
+
+该命令验证清单签名、新入口返回的精确字节、旧入口的 302 目标、实际跟随一次跳转后的字节及缓存策略。`upload --confirm-production` 在写入前检查旧转接，写入后强制完成两入口检查，并保存 `complete` 或 `manifest-published-verification-failed` 状态。后者表示清单可能已经发布，不能当作未发布重新上传；先用只读入口检查恢复核验。QA 上传不受旧域名转接要求影响。
 
 更新服务本身不需要 Worker 或单独 Git 仓库。域名和桶必须在同一个 Cloudflare 账号；仅连接 `updates.uuthings.com`，不改两个官网。不开启 r2.dev 公共地址。Cloudflare 的 R2 开通可能要求接受按用量计费条款，不能将免费额度当作永远免费。
 

@@ -98,6 +98,7 @@ private final class AppSparkleUserDriver: NSObject, SPUUserDriver {
         guard let owner else { reply(.dismiss); return }
         owner.offerUpdate(version: appcastItem.displayVersionString, informationOnly: appcastItem.isInformationOnlyUpdate,
                           informationURL: appcastItem.infoURL, publishedAt: appcastItem.date,
+                          downloadSize: appcastItem.contentLength,
                           userInitiated: state.userInitiated, reply: reply)
     }
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {

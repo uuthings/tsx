@@ -130,7 +130,7 @@
     },
     "THIRD_PARTY_NOTICES.md": {
       "mode": "100644",
-      "sha256": "a3f6b8e6b77acdf070c5ef8c4df93f0ae804ae26ad7ab0289161091795687f4e"
+      "sha256": "85316524cf7a632000e451dc16e333028e8fa28e2b656a7c0d38bd8d6ac1dcfe"
     },
     "Tools/Assets/AppIcon.png": {
       "mode": "100644",
@@ -143,6 +143,10 @@
     "Tools/Assets/GenerateMenuIcon.swift": {
       "mode": "100644",
       "sha256": "f66d368265ad65d2c6771d2087c9065c3d3d805cc0e8fa20f95b1bef7ce83b8b"
+    },
+    "Tools/Assets/GenerateUpdateNewMark.swift": {
+      "mode": "100644",
+      "sha256": "e56e074e8939c2d1a94d0325b452298eded5deb5c1cd9c5d28b38f3b33609957"
     },
     "Tools/Assets/MenuBarIcon.svg": {
       "mode": "100644",
@@ -246,7 +250,7 @@
     },
     "Tools/Assets/README.md": {
       "mode": "100644",
-      "sha256": "b0a49687f8fa78791be8484706c7f24616bbd230f973a873a0a1e9ea0ca165ae"
+      "sha256": "8c45a613c89c4f66a93ac2abe4344b06712ce21559c82a6f57e12870b78cd452"
     },
     "Tools/CodexRuntime/PACKAGING.md": {
       "mode": "100644",
@@ -442,7 +446,7 @@
     },
     "Tools/QA/TranslationServiceVisualReview.swift": {
       "mode": "100644",
-      "sha256": "ed6c9a97bda7fd69fdcac721d12eff320170bbeb488a031073ba1722d6956d02"
+      "sha256": "6872a75619d7dffe7fd134145f1aeaddc3717287aa50c2545089eae9da241361"
     },
     "Tools/QA/ValidateProject.swift": {
       "mode": "100644",
@@ -470,7 +474,7 @@
     },
     "Tools/Release/r2_updates.py": {
       "mode": "100644",
-      "sha256": "2a7f228a4741e9d0990aee71e9a13b91126ab72ce66cc7ddb72353341351a0af"
+      "sha256": "b35b3aa16c951a7e0dbd678e458dde127601fe3ab4ca6aa416ec6ec48b163be3"
     },
     "Tools/Release/release.py": {
       "mode": "100644",
@@ -490,15 +494,15 @@
     },
     "Tools/Release/test_update_service.py": {
       "mode": "100644",
-      "sha256": "fab0152444a116ce774dc9acd6bef964df14ca02feae6751c41524e1d55571fa"
+      "sha256": "a008a1c6f34f5dc9fe789ae972a8eb49bf53ad869c6252805989ec8d49ce1f8f"
     },
     "Tools/Release/update_feed.py": {
       "mode": "100644",
-      "sha256": "d9ee37124ed68a9641704990e168f3c65561f102330660a88504a0aafc496811"
+      "sha256": "609ca249be3185ffcfcba1758dda04ef688c53695f670ec86ecb425e44ad4023"
     },
     "TranslateX.xcodeproj/project.pbxproj": {
       "mode": "100644",
-      "sha256": "86a848b357a03f4ef205133ee95cb0d8f4cf89fc603abb88c42a54b9f17e5064"
+      "sha256": "43ee540ee80e2a5a2188cd1d793664efc1ec355899d43893b6f00b457fe914c4"
     },
     "TranslateX.xcodeproj/project.xcworkspace/contents.xcworkspacedata": {
       "mode": "100644",
@@ -796,6 +800,14 @@
       "mode": "100644",
       "sha256": "ca834bb8aff332eb702a07ba95064ce80917c4bb7e618e552b161e8c2fc4cbb5"
     },
+    "TranslateX/Resources/Assets.xcassets/UpdateNewMark.imageset/Contents.json": {
+      "mode": "100644",
+      "sha256": "63d98e4762fa0067ff2447f5ce604c43bb6b98cecd8ee0e14e450017b2a53bdc"
+    },
+    "TranslateX/Resources/Assets.xcassets/UpdateNewMark.imageset/UpdateNewMark.svg": {
+      "mode": "100644",
+      "sha256": "8bdf2850a6cecb9f971660763b40b541bd98a08bcefb89e83d2434ca2a416718"
+    },
     "TranslateX/Resources/GitHubIconNotices.txt": {
       "mode": "100644",
       "sha256": "d7285f92a4872eec411dfd5310e21953ea7e88daf2e055fbf16c489c8f9fb9f1"
@@ -806,11 +818,15 @@
     },
     "TranslateX/Resources/PublishedReleaseNotes.json": {
       "mode": "100644",
-      "sha256": "0d0d4f4d532921b00d892de3563dce840cdc369571f12606257444fc1fd9c5ea"
+      "sha256": "c7ca19b981b30157a82376ee6a904620c08cb9c7ad4badcb13c34b52c8ea748a"
     },
     "TranslateX/Resources/ScreenshotIconNotices.txt": {
       "mode": "100644",
       "sha256": "0a7d396237b7f6246c902ba3ed62ffb26f5abe6ce75ec72742a551fb80f14e58"
+    },
+    "TranslateX/Resources/UpdateNewMarkNotices.txt": {
+      "mode": "100644",
+      "sha256": "5ee405cb452eec557245bfc26f41e4d6e8f3b79b0a2abb4522ca369d3f86dfea"
     },
     "TranslateX/Resources/en.lproj/InfoPlist.strings": {
       "mode": "100644",
@@ -918,7 +934,7 @@
     },
     "TranslateX/System/Updates/AppUpdateController.swift": {
       "mode": "100644",
-      "sha256": "051d02b342b15504cbe6ca926c504fbd8d610bc57419c26b30be2c2fa1d36075"
+      "sha256": "cf44b5a7622dcce02f2ff11dd6542d9e12e1b663b584e58915354de6d10e8018"
     },
     "TranslateX/System/Updates/ReleaseNotesPresentation.swift": {
       "mode": "100644",
@@ -926,7 +942,7 @@
     },
     "TranslateX/System/Updates/SparkleAppUpdater.swift": {
       "mode": "100644",
-      "sha256": "2e8b576dd3f01139613227fe96882c9f9ea3e56527b1cca2a32e75205038ae10"
+      "sha256": "3c8eacc212263eb52500140a64c60aeae81219a18cb2a5a430c152409c8b2a2b"
     },
     "TranslateX/Translation/AppleTranslationHost.swift": {
       "mode": "100644",
@@ -1118,11 +1134,11 @@
     },
     "TranslateX/UI/Settings/CompactUpdateDialog.swift": {
       "mode": "100644",
-      "sha256": "47c578193a6cc8dae073aed3748d500e37afba1999b4273ec3ec49a34aee14e7"
+      "sha256": "6032cf6cb6f8d8e7648e8a7c96c8a03d3d97564ccb94202f26f3d89b95a6de8f"
     },
     "TranslateX/UI/Settings/ReleaseNotesView.swift": {
       "mode": "100644",
-      "sha256": "9161c35c2f482e0531f259390df8ed437c3012902a63aca60f58139635e8f409"
+      "sha256": "7dbbf2ebc2f4bfa3fe213894d9971904a72142b366224d650e9e183c6941dadf"
     },
     "TranslateX/UI/Settings/SettingsView.swift": {
       "mode": "100644",
@@ -1182,7 +1198,7 @@
     },
     "TranslateX/UI/Translation/InputTranslationView.swift": {
       "mode": "100644",
-      "sha256": "518c022e25664f9b8966fea6d136bfa8552b80f70455118edd66b464cfd2682b"
+      "sha256": "93f04eef41eb597eac91aabbe1e7612e8f7c22da309289f83d41643b1c307d80"
     },
     "TranslateX/UI/Translation/QuickTranslationView.swift": {
       "mode": "100644",
@@ -1234,7 +1250,7 @@
     },
     "TranslateX/UI/Translation/TranslationWorkspace.swift": {
       "mode": "100644",
-      "sha256": "e409cef43ec961b473b85ca5a15b647a4c6175237b95b7220e24b446e26925a5"
+      "sha256": "6076673e8cb97168097c0701e85bf9c166b75f8a6ff99306ead5551e2997de94"
     },
     "TranslateX/Windows/PanelPlacement.swift": {
       "mode": "100644",
@@ -1270,7 +1286,7 @@
     },
     "TranslateXTests/AppUpdateControllerTests.swift": {
       "mode": "100644",
-      "sha256": "aa28eed6343c02be2a6a1c33c5838d735bbb7bc3b8471e7860aa76d3de8392e6"
+      "sha256": "bb8ee35e1ddf3f629aa781910cb9f9dcba880bcd0f6a1292fa07fb346980c288"
     },
     "TranslateXTests/AppleTranslationHostTests.swift": {
       "mode": "100644",
@@ -1570,7 +1586,7 @@
     },
     "project.yml": {
       "mode": "100644",
-      "sha256": "6e45ca745d5416b02bfef7ccef513c25cd13b3328d89875e6e9d46d3d6434eb1"
+      "sha256": "5b84ae2e2461ee251916644655305dafecb3d2d7798cbfaf9cca9d6a6eba5b58"
     }
   },
   "version": 1

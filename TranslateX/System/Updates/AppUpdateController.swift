@@ -134,6 +134,7 @@ final class AppUpdateController {
     @ObservationIgnored private var automaticInstallAttemptedVersion: String?
     @ObservationIgnored private var installRequested = false
     @ObservationIgnored private var directlyRequestedVersion: String?
+    @ObservationIgnored private var offeredDownloadBytes: UInt64 = 0
     @ObservationIgnored private var expectedDownloadBytes: UInt64 = 0
     @ObservationIgnored private var receivedDownloadBytes: UInt64 = 0
 
@@ -210,6 +211,7 @@ final class AppUpdateController {
         guard started, canCheckForUpdates, !isChecking else { return }
         updateLocation = location
         directlyRequestedVersion = version
+        offeredDownloadBytes = 0
         installRequested = false
         automaticSession = false
         checkOrigin = .manual; sessionPhase = .checking
@@ -352,7 +354,9 @@ final class AppUpdateController {
     }
 
     func offerUpdate(version: String, informationOnly: Bool, informationURL: URL?, publishedAt: Date? = nil,
+                     downloadSize: UInt64 = 0,
                      userInitiated: Bool, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        offeredDownloadBytes = downloadSize
         foundUpdate(version, publishedAt: publishedAt)
         sessionPhase = .offered
         isChecking = false
@@ -372,11 +376,15 @@ final class AppUpdateController {
     func downloadStarted(cancellation: @escaping () -> Void) {
         sessionPhase = .installing
         self.cancellation = cancellation
-        receivedDownloadBytes = 0; expectedDownloadBytes = 0
-        setPhase(.downloading, progress: nil)
+        receivedDownloadBytes = 0; expectedDownloadBytes = offeredDownloadBytes
+        updateDownloadProgress()
         if automaticSession, !automaticUpdatesEnabled { dismissUpdate() }
     }
-    func downloadExpected(_ bytes: UInt64) { expectedDownloadBytes = bytes; updateDownloadProgress() }
+    func downloadExpected(_ bytes: UInt64) {
+        // An unknown HTTP length must not erase the size from the verified feed.
+        if bytes > 0 { expectedDownloadBytes = bytes }
+        updateDownloadProgress()
+    }
     func downloadReceived(_ bytes: UInt64) {
         receivedDownloadBytes = receivedDownloadBytes.addingReportingOverflow(bytes).overflow ? UInt64.max : receivedDownloadBytes + bytes
         updateDownloadProgress()

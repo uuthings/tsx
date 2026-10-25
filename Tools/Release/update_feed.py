@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 BASE = "https://updates.uuthings.com/tsx/macos"
 FEED = BASE + "/stable/appcast.xml"
+LEGACY_FEED = "https://lumaxspace.com/updates/tsx/appcast.xml"
 SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 ET.register_namespace("sparkle", SPARKLE)
 
@@ -64,6 +65,8 @@ def compose(candidate, previous, *, version, build, download_url, published_at, 
             or item.findtext(tag("shortVersionString")) != version
             or enclosure is None or not enclosure.get(tag("edSignature"))):
         raise ValueError("Candidate feed does not match the release identity/signature")
+    if not re.fullmatch(r"[1-9][0-9]*", str(build)):
+        raise ValueError("Release Build numbers must be positive integers")
     if not download_url.startswith(BASE + "/"):
         raise ValueError("Unexpected download origin")
     enclosure.set("url", download_url)
@@ -80,9 +83,16 @@ def compose(candidate, previous, *, version, build, download_url, published_at, 
     ET.SubElement(item, "pubDate").text = format_datetime(date.astimezone(timezone.utc))
     if previous:
         channel = root.find("channel")
-        for old in read_xml(previous).findall("channel/item"):
+        history = read_xml(previous).findall("channel/item")
+        for old in history:
             if old.findtext(tag("version")) == str(build):
                 raise ValueError("Build already exists in the destination feed; use a new Build")
+        builds = [old.findtext(tag("version"), "") for old in history]
+        if any(not re.fullmatch(r"[1-9][0-9]*", old) for old in builds):
+            raise ValueError("Release Build numbers must be positive integers")
+        if builds and int(build) <= max(map(int, builds)):
+            raise ValueError("New Build must be greater than every published Build")
+        for old in history:
             channel.append(deepcopy(old))
     # ET intentionally discards the old XML signature comment. Sign the final
     # bytes again, after changing URLs/date/description, before uploading.

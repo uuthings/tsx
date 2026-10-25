@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 import uuid
 
@@ -180,28 +181,79 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def check_legacy_redirect():
+    request = urllib.request.Request(update_feed.LEGACY_FEED,
+                                    headers={"User-Agent": "UUThings-Update-Service/1.0"})
+    try:
+        response = urllib.request.build_opener(NoRedirect).open(request, timeout=30)
+    except urllib.error.HTTPError as error:
+        if error.code != 302:
+            error.close()
+            raise RuntimeError("Legacy update entrypoint must return the configured 302 redirect") from None
+        response = error
+    with response:
+        if response.status != 302 or response.headers.get("Location") != update_feed.FEED:
+            raise RuntimeError("Legacy update entrypoint does not redirect to the canonical stable feed")
+    return {"url": update_feed.LEGACY_FEED, "status": 302, "location": update_feed.FEED}
+
+
+class LegacyFeedRedirect(urllib.request.HTTPRedirectHandler):
+    def __init__(self):
+        super().__init__()
+        self.redirects = 0
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if (self.redirects or req.full_url != update_feed.LEGACY_FEED
+                or code != 302 or newurl != update_feed.FEED):
+            raise RuntimeError("Unexpected update redirect; only the legacy-to-stable hop is allowed")
+        self.redirects += 1
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def verify_entrypoints(path):
+    """Public, read-only validation. No R2 credentials or publishing operations."""
+    sparkle_verify(path)
+    canonical = public_verify("tsx/macos/stable/appcast.xml", path, XML_TYPE, "no-cache")
+    legacy = check_legacy_redirect()
+    handler = LegacyFeedRedirect()
+    request = urllib.request.Request(update_feed.LEGACY_FEED,
+                                    headers={"Accept-Encoding": "identity", "User-Agent": "UUThings-Update-Service/1.0"})
+    with urllib.request.build_opener(handler).open(request, timeout=30) as response:
+        if handler.redirects != 1 or response.geturl() != update_feed.FEED:
+            raise RuntimeError("Legacy update request did not follow exactly one hop to stable")
+        _verify_public_response(response, path, XML_TYPE, "no-cache")
+    legacy["final_url"] = update_feed.FEED
+    legacy["sha256"] = archive_evidence.sha(path)
+    return {"stable": canonical, "legacy": legacy}
+
+
 def public_verify(key, path, content_type, cache_control):
     request = urllib.request.Request("https://updates.uuthings.com/" + key,
                                      headers={"Accept-Encoding": "identity", "User-Agent": "UUThings-Update-Service/1.0"})
     with urllib.request.build_opener(NoRedirect).open(request, timeout=120) as response:
-        if response.status != 200 or response.headers.get("Content-Type") != content_type:
-            raise RuntimeError("Public response has unexpected status or content type")
-        if response.headers.get("Cache-Control") != cache_control:
-            raise RuntimeError("Public cache policy differs from the prepared plan")
-        status = response.headers.get("CF-Cache-Status", "")
-        if cache_control != IMMUTABLE and status in ("HIT", "STALE", "UPDATING", "REVALIDATED"):
-            raise RuntimeError("Mutable/test object was served from the CDN cache")
-        checksum = hashlib.sha256()
-        total = 0
-        for chunk in iter(lambda: response.read(1024 * 1024), b""):
-            total += len(chunk)
-            if total > path.stat().st_size:
-                raise RuntimeError("Public object is larger than the local candidate")
-            checksum.update(chunk)
-        if checksum.hexdigest() != archive_evidence.sha(path):
-            raise RuntimeError("Public bytes differ from the prepared local file")
-        return {"key": key, "sha256": checksum.hexdigest(), "content_type": content_type,
+        status = _verify_public_response(response, path, content_type, cache_control)
+        return {"key": key, "sha256": archive_evidence.sha(path), "content_type": content_type,
                 "cache_control": cache_control, "cf_cache_status": status}
+
+
+def _verify_public_response(response, path, content_type, cache_control):
+    if response.status != 200 or response.headers.get("Content-Type") != content_type:
+        raise RuntimeError("Public response has unexpected status or content type")
+    if response.headers.get("Cache-Control") != cache_control:
+        raise RuntimeError("Public cache policy differs from the prepared plan")
+    status = response.headers.get("CF-Cache-Status", "")
+    if cache_control != IMMUTABLE and status in ("HIT", "STALE", "UPDATING", "REVALIDATED"):
+        raise RuntimeError("Mutable/test object was served from the CDN cache")
+    checksum = hashlib.sha256()
+    total = 0
+    for chunk in iter(lambda: response.read(1024 * 1024), b""):
+        total += len(chunk)
+        if total > path.stat().st_size:
+            raise RuntimeError("Public object is larger than the local candidate")
+        checksum.update(chunk)
+    if checksum.hexdigest() != archive_evidence.sha(path):
+        raise RuntimeError("Public bytes differ from the prepared local file")
+    return status
 
 
 def upload(args, settings, s3):
@@ -245,6 +297,8 @@ def upload(args, settings, s3):
     current, _ = object_state(s3, settings["bucket"], plan["feed_key"])
     if current != plan["expected_etag"]:
         raise RuntimeError("Manifest changed since preparation; prepare and review again")
+    if channel == "stable":
+        check_legacy_redirect()
     artifact_cache = IMMUTABLE if channel == "stable" else "no-store"
     records = []
     for obj in plan["objects"]:
@@ -253,16 +307,27 @@ def upload(args, settings, s3):
         records.append(public_verify(obj["key"], path, obj["type"], artifact_cache))
     cache = "no-cache" if channel == "stable" else "no-store"
     etag = put_manifest(s3, settings["bucket"], plan["feed_key"], feed, plan["expected_etag"], cache)
-    records.append(public_verify(plan["feed_key"], feed, XML_TYPE, cache))
     receipt = {"time": datetime.now(timezone.utc).isoformat(), "manifest_etag": etag,
-               "configuration_audit": audit_result, "verified": records}
-    (args.directory / ("receipt-" + uuid.uuid4().hex + ".json")).write_text(json.dumps(receipt, indent=2) + "\n")
+               "configuration_audit": audit_result, "verified": records,
+               "state": "manifest-published-verification-pending"}
+    receipt_path = args.directory / ("receipt-" + uuid.uuid4().hex + ".json")
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+    try:
+        records.append(public_verify(plan["feed_key"], feed, XML_TYPE, cache))
+        if channel == "stable":
+            receipt["entrypoints"] = verify_entrypoints(feed)
+        receipt["state"] = "complete"
+    except Exception:
+        receipt["state"] = "manifest-published-verification-failed"
+        raise
+    finally:
+        receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
     print(f"Uploaded and verified {channel}; {len(records)} public objects match local bytes.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True, help="Private config outside Git; contains Keychain references, not credentials")
+    parser.add_argument("--config", type=Path, help="Private config outside Git; required for prepare/upload")
     commands = parser.add_subparsers(dest="command", required=True)
     stage = commands.add_parser("prepare", help="Read current manifest and prepare a signed reviewable plan, without uploads")
     stage.add_argument("--candidate", type=Path, required=True)
@@ -272,7 +337,20 @@ def main():
     send = commands.add_parser("upload")
     send.add_argument("--directory", type=Path, required=True)
     send.add_argument("--confirm-production", action="store_true")
+    verify = commands.add_parser("verify-entrypoints", help="Verify signed stable bytes through both public URLs; no credentials or writes")
+    verify.add_argument("--feed", type=Path, required=True, help="Expected signed stable appcast")
+    verify.add_argument("--output", type=Path, required=True, help="New evidence file outside Git")
     args = parser.parse_args()
+    if args.command == "verify-entrypoints":
+        if args.output.exists():
+            parser.error("Evidence output already exists; use a new path")
+        result = verify_entrypoints(args.feed)
+        with args.output.open("x") as stream:
+            stream.write(json.dumps({"time": datetime.now(timezone.utc).isoformat(), "entrypoints": result}, indent=2) + "\n")
+        print("Both update entrypoints serve the expected signed stable feed.")
+        return
+    if args.config is None:
+        parser.error("--config is required for prepare/upload")
     settings = config(args.config)
     s3 = client(settings)
     {"prepare": prepare, "upload": upload}[args.command](args, settings, s3)

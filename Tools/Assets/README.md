@@ -40,6 +40,16 @@ swift -swift-version 6 Tools/Assets/GenerateMenuIcon.swift --output-directory .b
 
 菜单模板遵循 [Apple NSImage.isTemplate](https://developer.apple.com/documentation/appkit/nsimage/istemplate) 的着色方式。上述导出工具仅更新图像，不改变工程配置、版本、应用身份或签名权限。
 
+## 更新入口字形
+
+`UpdateNewMark.imageset` 保存 Patrick Hand Regular 的 `New` 矢量轮廓。28 × 15 点透明画布对应胶囊大小；字形按 12.5 点、−0.1 点字距居中并向上调整 0.5 点。运行时按模板着色，不加载或安装字体。
+
+```sh
+swift -swift-version 6 Tools/Assets/GenerateUpdateNewMark.swift
+```
+
+生成器只将固定提交的官方字体下载到忽略的 `.build/AssetSources/PatrickHand/`，校验 SHA-256 后使用 CoreText 导出。普通构建直接使用已提交的 SVG，不需要联网。可加 `--preview .build/AssetReview/update-new-mark.png` 检查放大的轮廓。来源与许可见 [UpdateNewMarkNotices.txt](../../TranslateX/Resources/UpdateNewMarkNotices.txt)。
+
 ## 第三方厂商标识
 
 厂商 SVG 的原始文件、固定来源、摘要、许可及重建方式见 [ProviderLogos](ProviderLogos/README.md)。各厂商品牌名称与标识属于对应权利人，保留其许可声明，仅用于识别配置的服务。

@@ -10,9 +10,9 @@
   简体中文 · <a href="README.en.md">English</a>
 </p>
 
-**TSX 1.3.7 · 免费、开源的 Mac 翻译工具。** 本仓库统一提供应用源码、使用说明、问题反馈和正式安装包。
+**TSX 1.3.9 · 免费、开源的 Mac 翻译工具。** 本仓库统一提供应用源码、使用说明、问题反馈和正式安装包。
 
-[版本与下载](https://github.com/TheoYuuu/tsx/releases) · [使用说明](Docs/USAGE.md) · [隐私与数据说明](Docs/PRIVACY.md) · [反馈问题](https://github.com/TheoYuuu/tsx/issues/new/choose)
+[版本与下载](https://github.com/uuthings/tsx/releases) · [使用说明](Docs/USAGE.md) · [隐私与数据说明](Docs/PRIVACY.md) · [反馈问题](https://github.com/uuthings/tsx/issues/new/choose)
 
 ## 更顺手的日常翻译
 
@@ -34,7 +34,7 @@
 
 ## 下载与更新
 
-从 [v1.3.7 Release](https://github.com/TheoYuuu/tsx/releases/tag/v1.3.7) 下载 **TSX-1.3.7-macOS-universal.dmg**，打开后将 TSX 拖入 Applications。正式安装包使用 Developer ID 签名并通过 Apple 公证。
+从 [v1.3.9 Release](https://github.com/uuthings/tsx/releases/tag/v1.3.9) 下载 **TSX-1.3.9-macOS-universal.dmg**，打开后将 TSX 拖入 Applications。正式安装包使用 Developer ID 签名并通过 Apple 公证。
 
 GitHub 自动生成的 **Source code (zip / tar.gz)** 包含对应版本的项目源码，**不是可以直接安装的 TSX 应用**。请下载 Release 附件中的安装包。
 
@@ -44,7 +44,7 @@ GitHub 自动生成的 **Source code (zip / tar.gz)** 包含对应版本的项�
 
 ## 反馈与项目状态
 
-欢迎通过 [Issues](https://github.com/TheoYuuu/tsx/issues/new/choose) 提交问题或功能建议，中英文均可。提交前请检查相似问题，并使用不含私人内容的样例。
+欢迎通过 [Issues](https://github.com/uuthings/tsx/issues/new/choose) 提交问题或功能建议，中英文均可。提交前请检查相似问题，并使用不含私人内容的样例。
 
 TSX 官方版本永久免费，不设置付费功能或订阅。你主动配置的第三方服务仍可能按其自身规则收费。项目采用 [MIT 许可证](LICENSE)，第三方组件保留各自许可证和声明。
 

@@ -105,6 +105,7 @@ struct TranslationWorkspace: View {
                     .foregroundStyle(theme.faint).padding(.top, 2).allowsHitTesting(false)
             }
         }
+        .padding(2)
     }
 
     @ViewBuilder private func languageMenu(_ side: TranslationSide) -> some View {

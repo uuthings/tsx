@@ -948,6 +948,37 @@ extension AppUpdateControllerTests {
         XCTAssertNil(updates.updatePresentation?.progress)
     }
 
+    func testDownloadUsesOfferedPackageSizeBeforeTheNetworkReportsItsLength() {
+        let updates = AppUpdateController(bundleIdentifier: "preview", isTesting: true)
+        updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
+                            downloadSize: 100, userInitiated: false) { _ in }
+        updates.downloadStarted {}
+        XCTAssertEqual(updates.updatePresentation?.progress, 0)
+        XCTAssertEqual(updates.updatePresentation?.totalDownloadBytes, 100)
+        updates.downloadExpected(0)
+        updates.downloadReceived(25)
+        XCTAssertEqual(updates.updatePresentation?.progress, 0.25)
+        XCTAssertEqual(updates.updatePresentation?.totalDownloadBytes, 100)
+        updates.downloadExpected(200)
+        XCTAssertEqual(updates.updatePresentation?.progress, 0.125)
+        XCTAssertEqual(updates.updatePresentation?.totalDownloadBytes, 200)
+    }
+
+    func testNewOfferDoesNotReuseThePreviousPackagesDownloadSize() {
+        let updates = AppUpdateController(bundleIdentifier: "preview", isTesting: true)
+        updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
+                            downloadSize: 100, userInitiated: true) { _ in }
+        updates.downloadStarted {}
+        updates.downloadReceived(25)
+        updates.dismissUpdate()
+        updates.offerUpdate(version: "3.0.0", informationOnly: false, informationURL: nil,
+                            userInitiated: true) { _ in }
+        updates.downloadStarted {}
+        XCTAssertNil(updates.updatePresentation?.totalDownloadBytes)
+        XCTAssertNil(updates.updatePresentation?.progress)
+        XCTAssertEqual(updates.updatePresentation?.downloadedBytes, 0)
+    }
+
     func testDownloadPresentationPublishesBytesBeforeTotalIsKnownAndResetsBetweenPhases() {
         let updates = AppUpdateController(bundleIdentifier: "preview", isTesting: true)
         updates.downloadStarted {}
