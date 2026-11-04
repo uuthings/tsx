@@ -1,20 +1,20 @@
 # 官网版发布流程
 
-当前源码采用 `updates.uuthings.com` 的 R2 更新清单与安装包，官网提供下载入口，GitHub Releases 可提供镜像。旧地址 `https://lumaxspace.com/updates/tsx/appcast.xml` 通过精确的 302 规则转接同一份正式清单；旧版无需修改设置。发布需有明确授权；普通开发不自动递增版本、创建 Tag/Release 或推送。已测范围与限制见 [Validation.md](Validation.md)。
+当前源码采用 `updates.uuthings.com` 的 R2 更新清单与安装包，官网提供主下载与 GitHub 备用入口；正式发行须将同一最终安装包同步到 GitHub Releases，并核对两端大小与 SHA-256 一致。旧地址 `https://lumaxspace.com/updates/tsx/appcast.xml` 通过精确的 302 规则转接同一份正式清单；旧版无需修改设置。发布需有明确授权；普通开发不自动递增版本、创建 Tag/Release 或推送。已测范围与限制见 [Validation.md](Validation.md)。
 
 ## 手动发布的完整顺序
 
 手动发布是由维护者逐步执行下面的操作；可以使用仓库工具完成重复检查，无需手工重写签名和打包逻辑。只有 App 公证及导出必须在 Xcode Organizer 中操作。首次准备见 [BUILDING.md](BUILDING.md)，各阶段的命令和核对项目见本文后续章节。
 
-1. **核对三个工作区。** 私有开发仓库、独立公开源码仓库和官网仓库分别检查 `git status`、`git remote -v`，再 `git fetch origin` 检查远端进展。确认没有未处理改动或冲突，两套应用仓库不能共用 Git 历史。只有本次发版涉及的文件进入提交；不得覆盖其他工作。
-2. **在私有源码确定版本。** 在 `project.yml` 同时更新 `MARKETING_VERSION` 和递增的 `CURRENT_PROJECT_VERSION`，运行 `xcodegen generate`。在 `TranslateX/Resources/PublishedReleaseNotes.json` 开头加入本版中英文说明，当前尚未发布的版本不填写虚构发布时间；上一版时间可按正式更新清单的真实发布时间补齐。准备本版公开说明，描述用户可见的变化和必要升级提醒。
-3. **验证并提交私有源码。** 运行 `Scripts/verify.sh`；发布工具变化时再运行本文的工具测试。完成本次界面及行为检查，记录真实覆盖范围。查看 `git diff`，按文件暂存，再检查 `git diff --cached` 和剩余差异，创建发布提交。通过私有历史和固定远端检查后执行 `git push origin main`。
-4. **同步独立公开源码。** 按 [双仓文件同步](PUBLIC_REPOSITORY.md#双仓库文件同步) 在公开工作区对上一步的准确 commit 生成导出预览，审阅后带 `--expect-plan` 应用。README、Docs、AGENTS 和策略属于公开仓库独立维护内容，逐项检查跳过项并同步适用的说明。检查真实暂存区，必要时执行策略差异审核；运行公开 `staged` 检查、相关构建验证并提交，再运行 `history main` 和 `git push origin main`。记录两边 commit 对应关系，记录只保存在私有归档中。
+1. **核对公开源码工作区。** TSX 唯一维护仓库为 `uuthings/tsx`；检查 `git status` 和远端身份，再 `git fetch origin` 核对远端进展。确认没有未处理改动或冲突，只有本次发版涉及的文件进入提交。涉及已授权官网更新时另行核对官网工作区；不读取或修改旧私有开发仓库，不执行双仓库同步。
+2. **在本仓库确定版本。** 在 `project.yml` 同时更新 `MARKETING_VERSION` 和递增的 `CURRENT_PROJECT_VERSION`，运行 `xcodegen generate`。在 `TranslateX/Resources/PublishedReleaseNotes.json` 开头加入本版中英文说明，当前尚未发布的版本不填写虚构发布时间；上一版时间可按正式更新清单的真实发布时间补齐。准备本版公开说明，描述用户可见的变化和必要升级提醒。
+3. **验证并提交公开源码。** 运行 `Scripts/verify.sh`；发布工具变化时再运行本文的工具测试。完成本次界面及行为检查，记录真实覆盖范围。查看 `git diff`，按文件暂存，检查 `git diff --cached` 和剩余差异；执行[公开仓库检查](PUBLIC_REPOSITORY.md)，必要时审核策略差异，再创建英文发布提交。保留无关修改，不改写旧提交。
+4. **固定候选源码并按授权推送。** 记录本次公开 commit、版本与 Build，后续归档及 Tag 均对应同一构建来源。只有获准推送时，才对实际待推送引用运行完整历史检查并推送到已核对的 `uuthings/tsx`，随后核对远端。无需导出私有源码或新增两仓 commit 对照；既有历史映射继续保留。
 5. **从干净的公开提交归档。** 在公开源码根目录运行 `python3 Tools/Release/release.py archive`。保存工具输出的候选目录和 `.xcarchive` 路径；后续所有命令使用同一个候选目录。真实归档保留在 Xcode 默认 Archives 目录，候选长期保存在仓库外。不能拿 Debug/TestHost 或普通 Release 构建目录冒充发行归档。
 6. **在 Xcode 公证并导出 App。** 打开 **Window → Organizer → Archives**，选择本版、对应 Build 的归档，执行 **Distribute App → Direct Distribution**；旧界面可能为 **Custom → Developer ID → Upload**。沿用有效的签名身份，核对后上传；等待 **Ready to distribute**，再点击 **Export Notarized App**，导出到本次候选的 `XcodeExport/`。只查询同一上传，不因等待而重复提交；登录或协议问题由账号持有人处理。
 7. **制作并公证 DMG。** 使用本文的 `prepare → submit --stage dmg → status → finish` 命令。`prepare` 核验导出 App、备份完整归档并制作签名 DMG；`submit` 上传容器；`status` 查询同一提交；状态为 Accepted 后 `finish` 附票并生成 `artifacts/`。只发布 `artifacts/` 内的最终 DMG 和 SHA256SUMS，不使用候选根目录中提交公证的原始 DMG，也不重新签名导出的 App。
 8. **验证最终产物。** 核对 `release.json`、`verification.json`、App／DMG 公证记录、归档备份与最终摘要。挂载最终 DMG 检查 App，执行适用的安装和升级测试；需要保留旧版时不覆盖日常应用，并明确记录未执行真实替换。使用 `shasum -a 256 -c SHA256SUMS.txt` 时先进入 `artifacts/`。保留失败与未测项，不将模拟更新当成真实升级通过。
-9. **在 QA 通道验证同一最终包。** 按下方 R2 工具流程准备并上传 `qa/appcast.xml` 和独立批次目录中的 DMG。使用独立 macOS 测试账号或 VM，旧版安装在该账号自己的 `~/Applications`，不使用共享的 `/Applications`。先保存原来的 `SUFeedURL` 偏好，再临时指向 QA；完整验证下载、验签、替换、重启，测试后恢复原值（原本没有才删除）。第一轮可用旧版到候选版测试，不必等下一次发行。系统朗读等未发布功能也要覆盖。
+9. **在 QA 通道验证同一最终包。** 按下方 R2 工具流程核对最终安装包体积与本轮保留数量，再准备并上传 `qa/appcast.xml` 和独立批次目录中的 DMG。使用独立 macOS 测试账号或 VM，旧版安装在该账号自己的 `~/Applications`，不使用共享的 `/Applications`。先保存原来的 `SUFeedURL` 偏好，再临时指向 QA；完整验证下载、验签、替换、重启，测试后恢复原值（原本没有才删除）。第一轮可用旧版到候选版测试，不必等下一次发行；同时覆盖本版实际新增或改动的能力。
 10. **正式授权后发布 R2。** 从同一最终 DMG 本地副本重新准备 stable；安装包不重建、不重签，路径改为 `releases/<版本>-<Build>/`，清单因地址和发布时间改变而重新生成并签名。先上传并核对安装包，再使用准备时读取的 ETag 条件更新 stable 清单。上传包必须 `PutObject + If-None-Match: *`，不以服务端 CopyObject 晋升候选，沿用已验证的本地副本条件上传。冲突必须停止重新审阅，不强行覆盖。
 11. **验收新旧更新入口并留档。** stable 发布前核对旧地址精确转接；发布后从新地址和旧地址分别读取本次签名清单，核对字节、版本、签名和缓存策略。两入口均通过才报告完成；若清单已写入但验收失败，保存部分发布状态，使用只读命令复核，不盲目重传。清除 QA 覆盖，再用新版“检查更新”验证内置 stable 地址、验签和“已是最新”。按授权同步 GitHub 镜像及官网的最小版本、下载与隐私说明；官网部署不再承担旧清单逐版同步。公开 Tag 必须指向实际构建的公开源码。归档线上清单、回读摘要、回执、源码映射和安装证据；清理 QA 对象前保留证据，不删除长期发行档案。
 
@@ -156,10 +156,46 @@ Cache Rule 使用下列表达式、动作 Bypass cache，放在可能覆盖它�
 
 私有配置字段为 `account_id`、`zone_id`、`bucket`、`public_origin`（固定 `https://updates.uuthings.com`）、`publisher_keychain_service`、`audit_keychain_service`、`keychain_account`。发布 Keychain 项内容为包含 `access_key_id`、`secret_access_key` 和可选 `session_token` 的 JSON；审计项为只读 Cloudflare API token。工具仅在内存读取，不把秘密放进命令行、仓库或回执。
 
+### 每次候选的保留数量
+
+每次 QA 或 stable 准备及上传都按本次最终 DMG 的大小检查保留数量，总数包含最新版；不足数量时不补传旧包。此处 MB 为十进制，两个边界分别为 200,000,000 和 500,000,000 字节。
+
+| 最终安装包大小 | R2 保留总数 |
+| --- | --- |
+| 不超过 200 MB | 最多 3 版 |
+| 超过 200 MB 且不超过 500 MB | 最多 2 版 |
+| 超过 500 MB | 每次由用户明确选择仅最新版，或最新版加 1 个旧版 |
+
+先用 `review-retention --candidate /private/path/notarized-candidate` 本地读取版本、Build、最终 DMG 字节数、摘要和体积分档。该命令不查询旧版本或云端占用；超过 500 MB 时，还须只读核对现存版本、大小和预计保留占用，再取得本轮选择。QA 上传同样不能跳过确认。
+
+只有用户已经明确选择后，才用 `confirm-retention` 的 `--candidate`、`--keep-versions`（`1` 或 `2`）、`--confirm-large-package` 和 `--output` 参数生成仓库外的确认记录；运行此命令本身不代表取得用户授权。超过 500 MB 的候选准备时通过 `--retention-approval` 传入该文件。确认绑定本次候选，不因旧版本曾获确认而沿用到新包；同一最终包从 QA 转为 stable 时仍需重新准备并复核。
+
+共享服务策略中的 TSX 目标必须与本轮数量一致，且共享工具可用。遇到缺项或不匹配时停止，由维护者在已授权范围内只调整 TSX 对应项；工具不会替用户改共享配置或影响其他软件。`prepare` 保存候选、确认信息及共享策略／工具摘要，`upload` 在上传前重新核对，不只信任旧计划中的数量。需要指定共享文件时，`--retention-policy`、`--retention-tool` 与 `--config` 一样放在子命令之前。
+
+同机协作发布与维护须使用同一真实配置文件及其所在目录，路径先解析符号链接。`prepare` 记录实际配置文件路径，`upload` 必须匹配；换成另一份配置文件须重新准备，即使内容相同。工具取得共享锁后再次核对策略与工具，等待期间发生变化则停止。该锁只协调同机遵守同一配置约定的工具，不协调其他机器或控制台操作。
+
+只有 stable 准备会核对超出保留范围的历史版本镜像：确认 GitHub 产物与原包一致后才将相应历史下载地址改为 GitHub，保留清单条目及兼容信息；核验失败时保留原 R2 地址，并在 `retention-preparation.json` 的 `blocked` 中记录原因。QA 不改写正式历史地址。
+
+GitHub 镜像、正式清单引用、缓冲期和不可变锁继续分别核验；数量规则不授权删除。保留完整 GitHub 历史与本地发行档案，模型、用户数据和备份不适用安装包淘汰规则。清理须另行使用共享工具的受控流程，不能通过 TSX 发布命令自动解锁或删除对象。
+
+stable 上传及入口验证完成后，工具另行生成共享保留检查计划。若这一步失败，上传回执的 `state` 仍为 `complete`，`retention_plan.state` 为 `failed`，命令报错提示不要重新发布；修复检查条件后，使用独立的只读计划入口，不重传正式包：
+
+```sh
+.build/r2-venv/bin/python Tools/Release/r2_updates.py --config /private/path/config.json \
+  retention plan --output /private/path/new-retention-plan.json
+```
+
+`retention plan` 只查询云端并生成仓库外计划，不删除对象。需要恢复部分维护记录时同时传入 `--recover-plan` 和 `--recover-receipt`；执行删除仍须另行获得授权并使用共享工具，TSX 入口不提供 `retention apply`。
+
+### 准备与上传命令
+
 ```sh
 python3 -m venv .build/r2-venv
 .build/r2-venv/bin/python -m pip install -r Tools/Release/requirements-r2.txt
 .build/r2-venv/bin/python -m unittest discover -s Tools/Release -p 'test_*.py'
+
+.build/r2-venv/bin/python Tools/Release/r2_updates.py review-retention \
+  --candidate /private/path/notarized-candidate
 
 .build/r2-venv/bin/python Tools/Release/r2_updates.py --config /private/path/config.json prepare \
   --candidate /private/path/notarized-candidate --output /private/path/new-qa-plan \
@@ -169,6 +205,8 @@ python3 -m venv .build/r2-venv
 ```
 
 `prepare` 读取远端当前清单并验签，使用归档保存的随包说明生成双语 plain-text 描述，保留 Sparkle 生成的包签名与系统要求，写入新的签名清单和可审阅 `plan.json`，不上传。`upload` 核验当前配置、来源摘要和 ETag，按“包 → 摘要 → 清单”顺序上传，每步回读原始字节并检查公开响应头，保存回执。仅出现一次 MISS 不算失败；测试/可变文件出现 HIT 或陈旧缓存则停止。
+
+上述示例适用于不超过 500 MB 的候选。超过 500 MB 时，先完成本轮选择与确认记录，并在 QA 和 stable 的 `prepare` 中各自增加 `--retention-approval /private/path/candidate-retention-approval.json`；同一最终包的确认不会免除正式发布授权或上传前复核。
 
 正式发布必须另行获得授权；重新运行 `prepare --channel stable` 使用新的正式发布时间和同一包，再对已审阅的计划使用 `upload --confirm-production`。工具不创建 Tag、Release、不推送源码、不部署官网。任何已上传正式文件不得覆盖；修复候选使用新的 Build。
 

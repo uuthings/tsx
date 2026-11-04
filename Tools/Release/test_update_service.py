@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import io
 import json
 import sys
@@ -85,6 +86,17 @@ class UploadTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.path = Path(self.directory.name) / "test.dmg"
         self.path.write_bytes(b"fixture")
+        policy, tool = self.path.parent / "policy.json", self.path.parent / "retention.py"
+        policy.write_text("{}")
+        tool.write_text("# isolated fixture")
+        self.retention = r2.retention_bridge.Session(config=self.path.parent / "config.json", policy=policy,
+            tool=tool, module=SimpleNamespace(service_lock=lambda path: nullcontext()), target={"keep_versions": 3})
+        self.retention.maintenance = mock.Mock(return_value={"state": "complete", "action": "plan"})
+        service = mock.patch.object(r2.retention_bridge, "load_session", return_value=self.retention)
+        service.start()
+        self.addCleanup(service.stop)
+        identity = r2.retention_bridge.identify_candidate("1.3.8", "15", self.path, r2.archive_evidence.sha(self.path))
+        self.retention_choice = r2.retention_bridge.candidate_policy(identity)
         self.s3 = boto3.client("s3", region_name="auto", aws_access_key_id="fixture",
                                aws_secret_access_key="fixture", endpoint_url="https://example.invalid")
         self.stub = Stubber(self.s3)
@@ -154,6 +166,7 @@ class UploadTests(unittest.TestCase):
                            download_url="https://updates.uuthings.com/" + prefix + filename,
                            published_at="2026-10-23T12:00:00Z", notes={"notes": "fixture"}))
         plan = {"channel": "qa", "bucket": "updates", "account_id": "fixture", "build": "15", "version": "1.3.8",
+                "retention": self.retention.snapshot, "retention_choice": self.retention_choice,
                 "expected_etag": None, "feed_key": "tsx/macos/qa/appcast.xml", "feed_sha256": r2.archive_evidence.sha(appcast),
                 "objects": [{"key": prefix + filename, "path": str(self.path), "type": r2.DMG_TYPE,
                              "sha256": r2.archive_evidence.sha(self.path)},
@@ -199,6 +212,7 @@ class UploadTests(unittest.TestCase):
                            download_url="https://updates.uuthings.com/" + prefix + filename,
                            published_at="2026-10-23T12:00:00Z", notes={"notes": "fixture"}))
         plan = {"channel": "stable", "bucket": "updates", "account_id": "fixture", "build": "15", "version": "1.3.8",
+                "retention": self.retention.snapshot, "retention_choice": self.retention_choice,
                 "expected_etag": None, "feed_key": "tsx/macos/stable/appcast.xml", "feed_sha256": r2.archive_evidence.sha(appcast),
                 "objects": [{"key": prefix + filename, "path": str(self.path), "type": r2.DMG_TYPE, "sha256": checksum},
                             {"key": prefix + sums.name, "path": str(sums), "type": r2.TEXT_TYPE,

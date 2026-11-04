@@ -15,6 +15,7 @@ import uuid
 import archive_evidence
 import update_feed
 import cloudflare_audit
+import retention_bridge
 from release import ACCOUNT, TOOLS
 
 XML_TYPE = "application/xml; charset=utf-8"
@@ -128,6 +129,16 @@ def sparkle_verify(path):
 
 
 def prepare(args, settings, s3):
+    with retention_bridge.locked_session(args, settings) as retention:
+        identity = retention_bridge.measure_candidate(args.candidate)
+        approval_path = getattr(args, "retention_approval", None)
+        approval = json.loads(approval_path.read_text()) if approval_path else None
+        choice = retention_bridge.candidate_policy(identity, approval)
+        retention.validate_candidate(choice)
+        _prepare(args, settings, s3() if callable(s3) else s3, retention, choice)
+
+
+def _prepare(args, settings, s3, retention, choice):
     output = archive_evidence.persistent_directory(args.output)
     if output.exists():
         raise RuntimeError("Use a new preparation directory; existing evidence is not overwritten")
@@ -159,6 +170,9 @@ def prepare(args, settings, s3):
     data = update_feed.compose((artifacts / "appcast.xml").read_bytes(), previous,
                               version=version, build=build, download_url=settings["public_origin"] + "/" + prefix + filename,
                               published_at=args.published_at, notes=notes)
+    if args.channel == "stable":
+        data, retention_report = retention.rewrite_feed(data, settings["public_origin"])
+        (output / "retention-preparation.json").write_text(json.dumps(retention_report, indent=2) + "\n")
     feed = output / "appcast.xml"
     feed.write_bytes(data)
     subprocess.run([str(TOOLS / "sign_update"), "--account", ACCOUNT, str(feed)], check=True, capture_output=True)
@@ -172,6 +186,8 @@ def prepare(args, settings, s3):
                 {"key": prefix + filename, "path": str(dmg.resolve()), "sha256": metadata["dmgSHA256"], "type": DMG_TYPE},
                 {"key": prefix + sums.name, "path": str(sums), "sha256": archive_evidence.sha(sums), "type": TEXT_TYPE}],
             "feed_sha256": archive_evidence.sha(feed), "prepared_at": datetime.now(timezone.utc).isoformat()}
+    plan["retention"] = retention.snapshot
+    plan["retention_choice"] = choice
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     print(f"Prepared {args.channel} plan for TSX {version} ({build}). No objects uploaded.\n{output / 'plan.json'}")
 
@@ -265,6 +281,36 @@ def upload(args, settings, s3):
         raise RuntimeError("Unexpected channel or manifest path")
     if channel == "stable" and not args.confirm_production:
         raise RuntimeError("Stable publication requires explicit authorization and --confirm-production")
+    with retention_bridge.locked_session(args, settings) as retention:
+        retention.validate_prepared(plan.get("retention"))
+        if len(plan.get("objects", [])) != 2 or plan["objects"][0].get("type") != DMG_TYPE:
+            raise RuntimeError("Expected one DMG and one checksum object")
+        dmg = plan["objects"][0]
+        identity = retention_bridge.identify_candidate(plan["version"], plan["build"], Path(dmg["path"]), dmg["sha256"])
+        prepared_choice = plan.get("retention_choice")
+        if not isinstance(prepared_choice, dict):
+            raise RuntimeError("Candidate retention review is missing; prepare and review again")
+        choice = retention_bridge.candidate_policy(identity, prepared_choice.get("approval"))
+        if choice != prepared_choice:
+            raise RuntimeError("Final candidate or retention choice changed; prepare and review again")
+        retention.validate_candidate(choice)
+        receipt, receipt_path = _upload(args, settings, s3() if callable(s3) else s3, plan)
+    # The standalone planner acquires the shared lock itself. Never run it
+    # while this publisher holds the lock, and never apply/delete implicitly.
+    if channel == "stable":
+        evidence = args.directory / ("retention-" + uuid.uuid4().hex + ".json")
+        try:
+            receipt["retention_plan"] = retention.maintenance(evidence)
+        except Exception:
+            receipt["retention_plan"] = {"state": "failed", "report": str(evidence)}
+            receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+            raise RuntimeError("Stable publication is complete, but its R2 retention check failed; do not republish") from None
+        receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+    print(f"Uploaded and verified {channel}; {len(receipt['verified'])} public objects match local bytes.")
+
+
+def _upload(args, settings, s3, plan):
+    channel = plan["channel"]
     audit_result = cloudflare_audit.audit(settings, keychain(settings["audit_keychain_service"], settings["keychain_account"]))
     prefix = update_feed.release_prefix(plan["version"], plan["build"]) if channel == "stable" else "tsx/macos/qa/artifacts/"
     feed = args.directory / "appcast.xml"
@@ -309,6 +355,7 @@ def upload(args, settings, s3):
     etag = put_manifest(s3, settings["bucket"], plan["feed_key"], feed, plan["expected_etag"], cache)
     receipt = {"time": datetime.now(timezone.utc).isoformat(), "manifest_etag": etag,
                "configuration_audit": audit_result, "verified": records,
+               "retention": plan["retention"], "retention_choice": plan["retention_choice"],
                "state": "manifest-published-verification-pending"}
     receipt_path = args.directory / ("receipt-" + uuid.uuid4().hex + ".json")
     receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
@@ -322,25 +369,54 @@ def upload(args, settings, s3):
         raise
     finally:
         receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
-    print(f"Uploaded and verified {channel}; {len(records)} public objects match local bytes.")
+    return receipt, receipt_path
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, help="Private config outside Git; required for prepare/upload")
+    parser.add_argument("--config", type=Path, help="Private config outside Git; required for prepare/upload/retention")
+    parser.add_argument("--retention-policy", type=Path, help="Shared R2 policy; defaults to the UUThings service directory")
+    parser.add_argument("--retention-tool", type=Path, help="Shared R2 retention tool; defaults to the UUThings service directory")
     commands = parser.add_subparsers(dest="command", required=True)
     stage = commands.add_parser("prepare", help="Read current manifest and prepare a signed reviewable plan, without uploads")
     stage.add_argument("--candidate", type=Path, required=True)
     stage.add_argument("--output", type=Path, required=True)
     stage.add_argument("--channel", choices=("qa", "stable"), default="qa")
     stage.add_argument("--published-at", required=True, help="Actual planned publication timestamp with timezone")
+    stage.add_argument("--retention-approval", type=Path, help="Candidate-specific user choice recorded by confirm-retention; required above 500 MB")
     send = commands.add_parser("upload")
     send.add_argument("--directory", type=Path, required=True)
     send.add_argument("--confirm-production", action="store_true")
     verify = commands.add_parser("verify-entrypoints", help="Verify signed stable bytes through both public URLs; no credentials or writes")
     verify.add_argument("--feed", type=Path, required=True, help="Expected signed stable appcast")
     verify.add_argument("--output", type=Path, required=True, help="New evidence file outside Git")
+    review = commands.add_parser("review-retention", help="Measure a final candidate locally; does not inspect cloud storage or grant publishing authorization")
+    review.add_argument("--candidate", type=Path, required=True)
+    confirmation = commands.add_parser("confirm-retention", help="Record an already-authorized large-installer choice for these exact bytes; never obtains user consent")
+    confirmation.add_argument("--candidate", type=Path, required=True)
+    confirmation.add_argument("--keep-versions", type=int, choices=(1, 2), required=True)
+    confirmation.add_argument("--confirm-large-package", action="store_true", required=True)
+    confirmation.add_argument("--output", type=Path, required=True, help="New confirmation JSON outside Git")
+    retention = commands.add_parser("retention", help="Generate a read-only cloud retention plan using the shared service; never delete objects")
+    retention.add_argument("action", choices=("plan",))
+    retention.add_argument("--output", type=Path, required=True)
+    retention.add_argument("--recover-plan", type=Path, help="Original reviewed plan for a new recovery plan")
+    retention.add_argument("--recover-receipt", type=Path, help="Partial maintenance receipt paired with the original plan")
     args = parser.parse_args()
+    if args.command in ("review-retention", "confirm-retention"):
+        identity = retention_bridge.measure_candidate(args.candidate)
+        if args.command == "review-retention":
+            keep = retention_bridge.keep_for_size(identity["max_artifact_bytes"])
+            print(json.dumps({"candidate": identity, "keep_versions": keep,
+                              "user_choice_required": keep is None,
+                              "old_versions_and_storage": "unknown: inspect registered cloud references before requesting confirmation"}, indent=2))
+        else:
+            output = archive_evidence.persistent_directory(args.output)
+            approval = retention_bridge.confirm_candidate(identity, args.keep_versions, args.confirm_large_package)
+            with output.open("x") as stream:
+                stream.write(json.dumps(approval, indent=2) + "\n")
+            print(f"Recorded the operator's authorized candidate choice. No objects uploaded.\n{output}")
+        return
     if args.command == "verify-entrypoints":
         if args.output.exists():
             parser.error("Evidence output already exists; use a new path")
@@ -350,10 +426,17 @@ def main():
         print("Both update entrypoints serve the expected signed stable feed.")
         return
     if args.config is None:
-        parser.error("--config is required for prepare/upload")
+        parser.error("--config is required for prepare/upload/retention")
     settings = config(args.config)
-    s3 = client(settings)
-    {"prepare": prepare, "upload": upload}[args.command](args, settings, s3)
+    if args.command == "retention":
+        session = retention_bridge.load_session(args, settings)
+        output = archive_evidence.persistent_directory(args.output)
+        session.maintenance(output,
+                            recover_plan=args.recover_plan, recover_receipt=args.recover_receipt)
+        print(f"R2 retention {args.action} completed; evidence: {args.output}")
+        return
+    # Local candidate, approval and policy checks happen before credential access.
+    {"prepare": prepare, "upload": upload}[args.command](args, settings, lambda: client(settings))
 
 
 if __name__ == "__main__":
