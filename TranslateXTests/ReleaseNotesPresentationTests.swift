@@ -134,7 +134,7 @@ final class ReleaseNotesPresentationTests: XCTestCase {
     }
 
     func testBundledReleaseCanDecodeWithoutInventingPublicationTime() throws {
-        let data = Data(#"{"version":"1.2.0","notes":"Prepared release notes","url":"https://github.com/TheoYuuu/tsx/releases/tag/v1.2.0"}"#.utf8)
+        let data = Data(#"{"version":"1.2.0","notes":"Prepared release notes","url":"https://github.com/uuthings/tsx/releases/tag/v1.2.0"}"#.utf8)
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let release = try decoder.decode(AppRelease.self, from: data)
         XCTAssertNil(release.publishedAt)

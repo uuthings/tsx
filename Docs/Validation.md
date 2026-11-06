@@ -288,7 +288,7 @@ macOS 27.0 / Apple silicon 上的独立原生 QA 完成 21 项检查。除既有
 2b3e72bc52d683f0780cc7fee17210e271af608d36bc8209a36f5880003df5fa
 ```
 
-相关入口：[Release](https://github.com/TheoYuuu/tsx/releases/tag/v1.0.0)、[构建说明](BUILDING.md)、[发布流程](RELEASING.md)。安装包完整性以附件、签名、公证及上述摘要核对，源码文档整理不构成重新构建或重新公证。
+相关入口：[Release](https://github.com/uuthings/tsx/releases/tag/v1.0.0)、[构建说明](BUILDING.md)、[发布流程](RELEASING.md)。安装包完整性以附件、签名、公证及上述摘要核对，源码文档整理不构成重新构建或重新公证。
 
 ## 外部服务与账号
 

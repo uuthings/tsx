@@ -737,7 +737,7 @@ extension AppUpdateControllerTests {
         addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         defaults.set("1.0.0", forKey: "TSXLastLaunchedReleaseVersion")
         let release = AppRelease(version: "1.1.0", publishedAt: .distantPast, notes: "Constructed release note",
-                                 url: URL(string: "https://github.com/TheoYuuu/tsx/releases/tag/v1.1.0")!)
+                                 url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v1.1.0")!)
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
                                           currentVersion: release.version, defaults: defaults,
                                           recordsInstalledVersions: true, backend: UpdateBackendFixture(),

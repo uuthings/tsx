@@ -526,7 +526,7 @@ final class AppUpdateController {
             - **More stable window switching** Dismissing an update preserves your translation and keyboard focus.
             ### Installation and notes
             These constructed installation notes must not appear in the dialog.
-            """, url: URL(string: "https://github.com/TheoYuuu/tsx/releases/tag/v1.1.2")!),
+            """, url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v1.1.2")!),
             .init(version: "1.1.1", publishedAt: Date().addingTimeInterval(-93_600), notes: """
             ## 中文
             - **双栏编辑更连贯** 清空一侧时同步移除旧内容，重新输入后可继续双向翻译。
@@ -534,12 +534,12 @@ final class AppUpdateController {
             ## English
             - **Smoother editing in both panes** Clearing one side removes stale text before translation resumes.
             - **Old results stay cleared** Clearing cancels pending translations and preserves composed input.
-            """, url: URL(string: "https://github.com/TheoYuuu/tsx/releases/tag/v1.1.1")!)
+            """, url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v1.1.1")!)
         ] : previewAvailableUpdate ? [.init(version: "1.0.1", publishedAt: .distantPast,
             notes: "## 中文\n- 修复双栏编辑中删除到空白后，另一侧仍残留旧内容的问题；清空后重新输入可继续双向翻译。\n- 清空时取消旧翻译，避免延迟返回的结果重新填入；保留中文输入法组合输入的正常行为。\n## English\n- Clear stale content in the other pane when editing down to an empty draft. Typing again resumes translation.\n- Cancel pending translations when clearing the draft while preserving composed text input.",
-            url: URL(string: "https://github.com/TheoYuuu/tsx/releases")!)] : shortReleaseNotes ? [.init(version: "1.0.0", publishedAt: .distantPast,
+            url: URL(string: "https://github.com/uuthings/tsx/releases")!)] : shortReleaseNotes ? [.init(version: "1.0.0", publishedAt: .distantPast,
             notes: "## 中文\n- 更新说明现在显示在翻译窗口中央。\n- 改善服务切换图标的圆角。\n## English\n- Release notes now appear over the translation workspace.\n- Service action icons have softer corners.",
-            url: URL(string: "https://github.com/TheoYuuu/tsx/releases/tag/v1.0.0")!)] : nil
+            url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v1.0.0")!)] : nil
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
                                           currentVersion: compactReleaseNotes ? (previewAvailableUpdate ? "1.1.1" : "1.1.2") : "1.0.0", recordsInstalledVersions: false,
                                           backend: backend, releases: AppReleaseNotesStore(entries: entries, allowsNetworkLoading: false))

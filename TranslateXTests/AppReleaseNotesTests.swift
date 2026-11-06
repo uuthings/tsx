@@ -74,7 +74,7 @@ final class AppReleaseNotesTests: XCTestCase {
 
     @MainActor
     func testMergeUsesHighestBuildKeepsOlderBundledNotesAndRejectsEmptyOrHTMLReplacement() {
-        let url = URL(string: "https://github.com/TheoYuuu/tsx/releases/tag/v1.0.0")!
+        let url = URL(string: "https://github.com/uuthings/tsx/releases/tag/v1.0.0")!
         let store = AppReleaseNotesStore(entries: [
             .init(version: "1.0.0", publishedAt: nil, notes: "Bundled", url: url),
             .init(version: "0.9.0", publishedAt: nil, notes: "Older", url: nil)

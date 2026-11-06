@@ -114,7 +114,7 @@ struct AboutSettingsView: View {
                 Label(L10n.string("Official website"), systemImage: "globe")
             }
             .buttonStyle(TranslationServiceButtonStyle())
-            Link(destination: URL(string: "https://github.com/TheoYuuu/tsx/releases")!) {
+            Link(destination: URL(string: "https://github.com/uuthings/tsx/releases")!) {
                 Label(L10n.string("Release notes"), systemImage: "arrow.up.right.square")
             }
             .buttonStyle(TranslationServiceButtonStyle())
@@ -135,7 +135,7 @@ struct AboutSettingsView: View {
             Text(L10n.string("If TSX has helped you, please give it a Star on GitHub. It means a lot to us."))
                 .font(.system(size: 11)).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 2)
-            Link(destination: URL(string: "https://github.com/TheoYuuu/tsx")!) {
+            Link(destination: URL(string: "https://github.com/uuthings/tsx")!) {
                 HStack(spacing: 6) {
                     Image("GitHubMark").renderingMode(.template).resizable().frame(width: 14, height: 14)
                     Text(L10n.string("Star on GitHub"))

@@ -507,7 +507,7 @@ final class QuickHandoffWindowTests: XCTestCase {
         addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         let releases = ["1.1.0", "2.0.0"].map {
             AppRelease(version: $0, publishedAt: .distantPast, notes: "Constructed release notes.",
-                       url: URL(string: "https://github.com/TheoYuuu/tsx/releases/tag/v\($0)")!)
+                       url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v\($0)")!)
         }
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
                                           currentVersion: "1.1.0", defaults: defaults,

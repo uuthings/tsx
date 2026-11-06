@@ -75,7 +75,7 @@ struct ReleaseNotesView: View {
 
 struct ReleaseHistoryLink: View {
     @Environment(\.openURL) private var openURL
-    private let url = URL(string: "https://github.com/TheoYuuu/tsx/releases")!
+    private let url = URL(string: "https://github.com/uuthings/tsx/releases")!
     var body: some View {
         Link(destination: url) {
             HStack(spacing: 4) { Text(L10n.string("Full release history")); Image(systemName: "arrow.up.right") }
