@@ -69,6 +69,7 @@ struct SettingsView: View {
         .onChange(of: preferences.appearance) { _, _ in appearanceChanged() }
         .onChange(of: preferences.material) { _, _ in appearanceChanged() }
         .onChange(of: preferences.interfaceLanguage) { _, _ in interfaceLanguageChanged() }
+        .onChange(of: preferences.defaultTarget) { _, _ in defaultTargetChanged() }
         .task { permissions.refresh(); await catalog.load() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in permissions.refresh() }
         .onDisappear { shortcuts.endRecording() }
@@ -166,6 +167,8 @@ struct SettingsView: View {
                       : "This language is unavailable for the selected service. Choose another target language."), systemImage: "exclamationmark.circle")
                     .font(.system(size: 11)).foregroundStyle(p.muted).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
             }
+            TranslationLanguageSettings(preferences: preferences, catalog: catalog)
+                .padding(.top, 16)
             groupCaption("Window and appearance").padding(.top, 16)
             group {
                 HStack(spacing: 20) {
@@ -217,9 +220,10 @@ struct SettingsView: View {
 
     private var targetLanguageMenu: some View {
         LanguageMenu(label: L10n.string("Default target language"), selection: Binding(
-            get: { preferences.defaultTarget }, set: { preferences.setDefaultTarget($0); defaultTargetChanged() }
-        ), languages: catalog.languages(for: services?.selectedConfiguration), prominent: false,
-           enabled: !catalog.languages(for: services?.selectedConfiguration).isEmpty, minimumWidth: 144)
+            get: { preferences.defaultTarget }, set: { preferences.setDefaultTarget($0) }
+        ), languages: preferences.filterLanguages(catalog.languages(for: services?.selectedConfiguration), for: .target), prominent: false,
+           enabled: !preferences.filterLanguages(catalog.languages(for: services?.selectedConfiguration), for: .target).isEmpty,
+           minimumWidth: 144)
             .fixedSize().translateXTooltip(L10n.string("Used for new selection and screenshot translations, and when the input workspace is empty."))
     }
 

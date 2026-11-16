@@ -29,7 +29,8 @@ final class ScreenshotOverlayController: NSObject {
     init(windows: WindowCoordinator, model: TranslationModel? = nil,
          currentScreenLayout: @escaping @MainActor () -> [CaptureDisplay] = ScreenshotOverlayController.screenLayout) {
         self.windows = windows
-        self.model = model ?? TranslationModel(automaticallyTranslates: true, services: windows.services)
+        self.model = model ?? TranslationModel(automaticallyTranslates: true, services: windows.services,
+                                               languagePreferences: windows.preferences)
         self.currentScreenLayout = currentScreenLayout
         super.init()
         self.model.target = windows.preferences.defaultTarget

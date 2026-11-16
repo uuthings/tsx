@@ -99,6 +99,7 @@ final class TranslationModel {
     private var automaticPreference = true
     @ObservationIgnored private var accountIdentityRevision = 0
     @ObservationIgnored private let services: TranslationServiceStore?
+    @ObservationIgnored private let languagePreferences: AppPreferences?
     @ObservationIgnored private var recognitionCancellation: (() -> Void)?
     @ObservationIgnored private var remoteTask: Task<Void, Never>?
     @ObservationIgnored private let remoteProvider: RemoteProviderFactory
@@ -148,12 +149,14 @@ final class TranslationModel {
         updateInterval: Duration = .milliseconds(650),
         sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         services: TranslationServiceStore? = nil,
+        languagePreferences: AppPreferences? = nil,
         remoteProvider: RemoteProviderFactory? = nil
     ) {
         self.automaticallyTranslates = automaticallyTranslates
         self.updateInterval = updateInterval
         self.sleep = sleep
         self.services = services
+        self.languagePreferences = languagePreferences
         self.remoteProvider = remoteProvider ?? { configuration, key, partial in
             TranslationProviderFactory.make(configuration: configuration, apiKey: key, codex: services?.codex, onPartial: partial)
         }
@@ -162,6 +165,8 @@ final class TranslationModel {
         accountIdentityRevision = services?.codex.identityRevision ?? 0
         automaticPreference = services?.selectedConfiguration?.automaticallyTranslates ?? services?.appleAutomaticallyTranslates ?? true
         trackServiceChanges()
+        synchronizeLanguagePreferences()
+        trackLanguagePreferences()
     }
 
     deinit { remoteTask?.cancel(); updateTask?.cancel() }
@@ -177,7 +182,11 @@ final class TranslationModel {
     var needsReverseLanguage: Bool { inputSide == .target && resolvedSource == nil && canTranslate && !inputNeedsNoTranslation }
     var isBusy: Bool { phase == .waiting || phase == .recognizing || phase == .translating || phase == .preparingLanguages }
     var canTranslate: Bool { !isComposing && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    var canSwapLanguages: Bool { !isComposing && resolvedSource != nil }
+    var canSwapLanguages: Bool {
+        !isComposing && resolvedSource != nil
+            && languagePreferences?.isLanguageEnabled(target, for: .source) != false
+            && resolvedSource.map { languagePreferences?.isLanguageEnabled($0, for: .target) != false } == true
+    }
     var canClear: Bool { !isComposing && (!text.isEmpty || !translatedText.isEmpty || screenshot != nil) }
     var canUndoWorkspaceChange: Bool { !isComposing && !isBusy && undoSnapshot != nil }
     var canRedoWorkspaceChange: Bool { !isComposing && !isBusy && redoSnapshot != nil }
@@ -238,6 +247,38 @@ final class TranslationModel {
                 self?.trackServiceChanges()
             }
         }
+    }
+
+    private func trackLanguagePreferences() {
+        guard let languagePreferences else { return }
+        withObservationTracking {
+            _ = languagePreferences.sourceLanguageIdentifiers
+            _ = languagePreferences.targetLanguageIdentifiers
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.synchronizeLanguagePreferences()
+                self?.trackLanguagePreferences()
+            }
+        }
+    }
+
+    /// Changing a menu's range is not a request to translate existing content.
+    func synchronizeLanguagePreferences() {
+        guard constrainLanguageChoices() else { return }
+        cancel()
+        languageChanged(automatically: false)
+    }
+
+    @discardableResult private func constrainLanguageChoices() -> Bool {
+        guard let languagePreferences else { return false }
+        let newSource = languagePreferences.isLanguageEnabled(source, for: .source) ? source : "auto"
+        let newTarget = languagePreferences.isLanguageEnabled(target, for: .target) ? target : languagePreferences.defaultTarget
+        guard newSource != source || newTarget != target else { return false }
+        isUpdatingContext = true
+        source = newSource
+        target = newTarget
+        isUpdatingContext = false
+        return true
     }
 
     /// Config, identity and preference changes never send the existing passage.
@@ -714,6 +755,7 @@ final class TranslationModel {
         result = nil; previousResult = nil; verifiedSnapshot = nil
         phase = .empty
         statusMessageKey = "Restored · Continue editing"
+        synchronizeLanguagePreferences()
     }
     private func cancelRecognition() {
         let callback = recognitionCancellation
@@ -731,7 +773,8 @@ final class TranslationModel {
         requestSnapshot = nil
         requestRegionID = nil
     }
-    private func languageChanged() {
+    private func languageChanged(automatically: Bool = true) {
+        constrainLanguageChoices()
         if phase == .recognizing { return }
         invalidateRequest(); forgetUndo()
         if screenshot != nil {
@@ -744,7 +787,7 @@ final class TranslationModel {
         result = nil; verifiedSnapshot = nil; previousResult = nil
         phase = .empty; statusMessageKey = ""
         if inputSide == .source { detectedSource = Self.detectLanguage(text, target: target) }
-        scheduleTranslation()
+        if automatically { scheduleTranslation() }
     }
     private func scheduleTranslation(regionID: UUID? = nil) {
         guard usesAutomaticTranslation, canTranslate, isServiceCurrent else { return }
@@ -795,7 +838,8 @@ final class TranslationModel {
         statusMessageKey = ""
         var handoffConfiguration = handoff.serviceConfiguration
         handoffConfiguration?.website = serviceConfiguration?.website ?? ""
-        if handoffConfiguration == serviceConfiguration, handoff.serviceRevision == serviceRevision {
+        if handoffConfiguration == serviceConfiguration, handoff.serviceRevision == serviceRevision,
+           source == handoff.source, target == handoff.target {
             if let completed = handoff.completedResult {
                 result = completed; phase = .completed; verifiedSnapshot = snapshot()
             } else {

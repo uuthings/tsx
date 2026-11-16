@@ -59,6 +59,7 @@ struct TranslateXThemeHost<Content: View>: View {
             .environment(\.locale, L10n.currentLocale)
             .environment(\.translateXTheme, theme)
             .environment(\.translationLayout, preferences.translationLayout)
+            .environment(\.translationLanguagePreferences, preferences)
             .tint(theme.accent)
             .foregroundStyle(theme.ink)
             .ignoresSafeArea(.container, edges: .top)

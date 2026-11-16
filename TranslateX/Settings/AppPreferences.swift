@@ -49,6 +49,11 @@ enum TranslationWindowKind: String, CaseIterable, Sendable {
 @MainActor @Observable
 final class AppPreferences {
     private(set) var defaultTarget: String
+    private(set) var sourceLanguageIdentifiers: [String]?
+    private(set) var targetLanguageIdentifiers: [String]?
+    private(set) var recentSourceLanguages: [String]
+    private(set) var recentTargetLanguages: [String]
+    static let recentLanguageLimit = 5
     var interfaceLanguage: AppInterfaceLanguage {
         didSet {
             guard interfaceLanguage != oldValue else { return }
@@ -93,7 +98,16 @@ final class AppPreferences {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        defaultTarget = Self.normalizedTarget(defaults.object(forKey: StorageKey.defaultTarget) as? String) ?? "zh-Hans"
+        let sourceRange = Self.savedLanguageRange(defaults.object(forKey: StorageKey.sourceLanguages))
+        let targetRange = Self.savedLanguageRange(defaults.object(forKey: StorageKey.targetLanguages))
+        sourceLanguageIdentifiers = sourceRange
+        targetLanguageIdentifiers = targetRange
+        recentSourceLanguages = Array(Self.normalizedLanguages(defaults.stringArray(forKey: StorageKey.recentSourceLanguages) ?? [])
+            .filter { sourceRange?.contains($0) ?? true }.prefix(Self.recentLanguageLimit))
+        recentTargetLanguages = Array(Self.normalizedLanguages(defaults.stringArray(forKey: StorageKey.recentTargetLanguages) ?? [])
+            .filter { targetRange?.contains($0) ?? true }.prefix(Self.recentLanguageLimit))
+        let savedTarget = Self.normalizedTarget(defaults.object(forKey: StorageKey.defaultTarget) as? String) ?? "zh-Hans"
+        defaultTarget = targetRange.map { $0.contains(savedTarget) ? savedTarget : $0[0] } ?? savedTarget
         interfaceLanguage = (defaults.object(forKey: StorageKey.interfaceLanguage) as? String)
             .flatMap(AppInterfaceLanguage.init(rawValue:)) ?? .system
         appearance = (defaults.object(forKey: StorageKey.appearance) as? String)
@@ -135,9 +149,71 @@ final class AppPreferences {
     }
 
     func setDefaultTarget(_ identifier: String) {
-        guard let target = Self.normalizedTarget(identifier), target != defaultTarget else { return }
+        guard let target = Self.normalizedTarget(identifier), target != defaultTarget,
+              isLanguageEnabled(target, for: .target) else { return }
         defaults.set(target, forKey: StorageKey.defaultTarget)
         defaultTarget = target
+    }
+
+    func enabledLanguageIdentifiers(for side: TranslationSide) -> [String]? {
+        side == .source ? sourceLanguageIdentifiers : targetLanguageIdentifiers
+    }
+
+    func recentLanguages(for side: TranslationSide) -> [String] {
+        side == .source ? recentSourceLanguages : recentTargetLanguages
+    }
+
+    func isLanguageEnabled(_ identifier: String, for side: TranslationSide) -> Bool {
+        if identifier == "auto" { return side == .source }
+        return enabledLanguageIdentifiers(for: side)?.contains(LanguageCatalog.canonicalIdentifier(identifier)) ?? true
+    }
+
+    func filterLanguages(_ languages: [TranslationLanguage], for side: TranslationSide) -> [TranslationLanguage] {
+        languages.filter { isLanguageEnabled($0.id, for: side) }
+    }
+
+    /// Nil follows the full service catalogue, including languages added later.
+    /// A custom range always contains at least two distinct concrete languages.
+    @discardableResult func setEnabledLanguages(_ identifiers: [String]?, for side: TranslationSide) -> Bool {
+        let normalized = identifiers.map(Self.normalizedLanguages)
+        guard normalized == nil || normalized!.count >= 2 else { return false }
+        guard normalized != enabledLanguageIdentifiers(for: side) else { return true }
+        let key = side == .source ? StorageKey.sourceLanguages : StorageKey.targetLanguages
+        if let normalized { defaults.set(normalized, forKey: key) }
+        else { defaults.removeObject(forKey: key) }
+        if side == .source { sourceLanguageIdentifiers = normalized }
+        else { targetLanguageIdentifiers = normalized }
+        storeRecentLanguages(recentLanguages(for: side).filter { isLanguageEnabled($0, for: side) }, for: side)
+        if side == .target, !isLanguageEnabled(defaultTarget, for: .target), let first = normalized?.first {
+            setDefaultTarget(first)
+        }
+        return true
+    }
+
+    /// Only explicit menu choices call this. Detection, swaps and restored work
+    /// must not change either side's recency or store any translation content.
+    func recordLanguageChoice(_ identifier: String, for side: TranslationSide) {
+        guard let identifier = Self.normalizedTarget(identifier), isLanguageEnabled(identifier, for: side) else { return }
+        let recent = [identifier] + recentLanguages(for: side).filter { $0 != identifier }
+        storeRecentLanguages(Array(recent.prefix(Self.recentLanguageLimit)), for: side)
+    }
+
+    private func storeRecentLanguages(_ identifiers: [String], for side: TranslationSide) {
+        guard identifiers != recentLanguages(for: side) else { return }
+        defaults.set(identifiers, forKey: side == .source ? StorageKey.recentSourceLanguages : StorageKey.recentTargetLanguages)
+        if side == .source { recentSourceLanguages = identifiers }
+        else { recentTargetLanguages = identifiers }
+    }
+
+    private static func normalizedLanguages(_ identifiers: [String]) -> [String] {
+        var seen = Set<String>()
+        return identifiers.compactMap(normalizedTarget).filter { seen.insert($0).inserted }
+    }
+
+    private static func savedLanguageRange(_ value: Any?) -> [String]? {
+        guard let values = value as? [String] else { return nil }
+        let normalized = normalizedLanguages(values)
+        return normalized.count >= 2 ? normalized : nil
     }
 
     func shortcut(for action: ShortcutAction) -> GlobalShortcut? {
@@ -183,6 +259,10 @@ final class AppPreferences {
     }
 
     enum StorageKey {
+        static let sourceLanguages = "preferences.sourceLanguages"
+        static let targetLanguages = "preferences.targetLanguages"
+        static let recentSourceLanguages = "preferences.recentSourceLanguages"
+        static let recentTargetLanguages = "preferences.recentTargetLanguages"
         static let defaultTarget = "preferences.defaultTarget"
         static let interfaceLanguage = "preferences.interfaceLanguage"
         static let appearance = "preferences.appearance"

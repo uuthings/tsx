@@ -21,6 +21,19 @@ final class LanguageCatalog {
         supportedIdentifiers = await Self.supportedLanguageIdentifiers()
     }
 
+    /// Settings describe the app-wide range. Menus still intersect it with the
+    /// active provider's capabilities, without claiming extra service support.
+    func preferenceLanguages(for side: TranslationSide) -> [TranslationLanguage] {
+        let asTarget = side == .target
+        let identifiers = supportedIdentifiers + Self.modelLanguageIdentifiers
+            + DedicatedTranslationLanguages.identifiers(for: .deepL, asTarget: asTarget)
+            + DedicatedTranslationLanguages.identifiers(for: .azureTranslator, asTarget: asTarget)
+            + GoogleTranslationLanguages.identifiers(asTarget: asTarget)
+            + QwenMTTranslationLanguages.identifiers(asTarget: asTarget)
+            + TencentTranslationLanguages.identifiers(asTarget: asTarget)
+        return Self.normalizedLanguages(identifiers.map { Locale.Language(identifier: $0) })
+    }
+
     /// Common language choices for text models, not a promise of model quality
     /// or a substitute for each dedicated translation API's language catalogue.
     func languages(for service: TranslationServiceConfiguration?, asTarget: Bool = true) -> [TranslationLanguage] {

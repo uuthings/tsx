@@ -169,7 +169,7 @@ struct ScreenshotOverlayView: View {
             enabled: !model.isComposing && model.phase != .recognizing,
             displayTitle: side == .source && model.source == "auto" ? model.resolvedSource.map {
                 String(format: L10n.string("Auto · %@"), LanguageCatalog.displayName(for: $0))
-            } : nil, maximumWidth: 123, grouped: true, screenshotChevron: true)
+            } : nil, maximumWidth: 123, grouped: true, screenshotChevron: true, preferenceSide: side)
             .fixedSize()
             .translateXTooltip(L10n.string(side == .source ? "Source language" : "Target language"))
             .accessibilityIdentifier("screenshotOverlay.\(side == .source ? "sourceLanguage" : "targetLanguage")")

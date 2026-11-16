@@ -114,6 +114,7 @@
 		90A3B1761EBAF7B5604B058A /* TranslationServiceModelCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E989132F5B782B4C73591A /* TranslationServiceModelCatalogTests.swift */; };
 		90F6A097EEA11D4343F62D72 /* ShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E30BB9BC66E6C4BD27DCAF1 /* ShortcutTests.swift */; };
 		90F87603494DE59DA6C34032 /* TranslationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD6B1D984AA2F0FCA3404E1 /* TranslationProvider.swift */; };
+		92202DADA5C60698F33A3B6A /* LanguagePreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E10ADA6060A4849B9CECF2 /* LanguagePreferencesTests.swift */; };
 		9288406C17EFCD49E3A6C60B /* GoogleCloudTranslationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3964106D3D477FEE7FB82BD /* GoogleCloudTranslationProvider.swift */; };
 		9290D2C1B1D49F2113589BE0 /* LegacyPreferencesMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9EC44642AAA3A0F77B4641 /* LegacyPreferencesMigration.swift */; };
 		93F409CF28197A0C8A73D85D /* DedicatedTranslationProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B909A4315204683FF2C2C /* DedicatedTranslationProviderTests.swift */; };
@@ -125,6 +126,7 @@
 		9D3E015CA4EFFC98E220B5C0 /* TranslationServiceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58ED38C92114F1685C771E26 /* TranslationServiceEditor.swift */; };
 		9FB249C7EB068344A5105C1A /* TranslationWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93A1409588A6E90007E1DBB /* TranslationWorkspace.swift */; };
 		A0A8B9E7D5B7AA9084542DAA /* DedicatedTranslationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD5E221267922A03BD6955D /* DedicatedTranslationProvider.swift */; };
+		A28D9AA53663FF9FD78C847B /* TranslationLanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE512D8394AB5DD5E1052249 /* TranslationLanguageSettings.swift */; };
 		A3914A0EED8CC4D25799F397 /* QuickEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B49DF744D3C56854A08ED06 /* QuickEditorTests.swift */; };
 		A3ED422FC8E99085BF12A56B /* TranslationServiceModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFFC7440BA4E6ED6B72BD140 /* TranslationServiceModelCatalog.swift */; };
 		A4D27CD8DA54FF464A67CBBF /* TranslationServiceUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342789ED0D5F33920DB725ED /* TranslationServiceUsageView.swift */; };
@@ -330,6 +332,7 @@
 		8E893CC2A925BB348E8E1D54 /* PanelPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPlacement.swift; sourceTree = "<group>"; };
 		8EAA0652F1C605D0A102084D /* TranslationServiceEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationServiceEditorView.swift; sourceTree = "<group>"; };
 		8F25F49D8AE93298423D151C /* MenuBarControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarControllerTests.swift; sourceTree = "<group>"; };
+		90E10ADA6060A4849B9CECF2 /* LanguagePreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguagePreferencesTests.swift; sourceTree = "<group>"; };
 		90F3E1507C40E92A1B0E471F /* TranslationUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationUsageStore.swift; sourceTree = "<group>"; };
 		912C090AC8F054AE4C9CF4B9 /* TranslationTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationTextEditor.swift; sourceTree = "<group>"; };
 		93479E76425D2A19182E0C71 /* LanguageDetectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageDetectionTests.swift; sourceTree = "<group>"; };
@@ -415,6 +418,7 @@
 		FB6383BBD997F3D8A0E5A470 /* UsageDatePopoverLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDatePopoverLayoutTests.swift; sourceTree = "<group>"; };
 		FB9424E12080109473FF43F0 /* ClaudeTranslationResponseParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTranslationResponseParser.swift; sourceTree = "<group>"; };
 		FCEA5DD35DBDDABD8FB9B2CE /* GoogleTranslationLanguages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTranslationLanguages.swift; sourceTree = "<group>"; };
+		FE512D8394AB5DD5E1052249 /* TranslationLanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationLanguageSettings.swift; sourceTree = "<group>"; };
 		FFED2D539D33CDE3833B3363 /* TranslationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -512,6 +516,7 @@
 				76802B8D7D150A297CFFA6E1 /* LanguageCatalogTests.swift */,
 				93479E76425D2A19182E0C71 /* LanguageDetectionTests.swift */,
 				4D3DA93C0C34900C30FFDB0C /* LanguageMenuTests.swift */,
+				90E10ADA6060A4849B9CECF2 /* LanguagePreferencesTests.swift */,
 				1B54E0159EE13F595FED8B14 /* LanguageSwitchingWindowTests.swift */,
 				F5F641C2E02D72AA42501592 /* LegacyPreferencesMigrationTests.swift */,
 				C196E40C9F55494B2D753F36 /* LocalizationMessageTests.swift */,
@@ -773,6 +778,7 @@
 				351E9D25A1068BEB0C04D69B /* ReleaseNotesView.swift */,
 				455FE2E732BC63FE840F0147 /* SettingsView.swift */,
 				DD5F1CE3AACD5DD502C5F678 /* ShortcutRecorder.swift */,
+				FE512D8394AB5DD5E1052249 /* TranslationLanguageSettings.swift */,
 				6A2FD9B5CD4A89865BC49B6B /* TranslationServiceChecksController.swift */,
 				42290BB358A1414913F12200 /* TranslationServiceComponents.swift */,
 				8EAA0652F1C605D0A102084D /* TranslationServiceEditorView.swift */,
@@ -1026,6 +1032,7 @@
 				6EF5125FC4BC3D22DDF7452C /* TranslationCommandBar.swift in Sources */,
 				16469BAC8E6059E7C82A2C1A /* TranslationFailure.swift in Sources */,
 				2F44F27377C8ABE29A9D4B50 /* TranslationHTTPPolicy.swift in Sources */,
+				A28D9AA53663FF9FD78C847B /* TranslationLanguageSettings.swift in Sources */,
 				E3F0CA3F724762FCDF69BB3F /* TranslationModel.swift in Sources */,
 				90F87603494DE59DA6C34032 /* TranslationProvider.swift in Sources */,
 				4F0D7792B82A7C3B924505AC /* TranslationProviderFactory.swift in Sources */,
@@ -1086,6 +1093,7 @@
 				54E2617BAEFBB1B45613A01B /* LanguageCatalogTests.swift in Sources */,
 				5C8E192ED920C0065D7BB335 /* LanguageDetectionTests.swift in Sources */,
 				717FE1F9B8AC5CFD8B0ACF14 /* LanguageMenuTests.swift in Sources */,
+				92202DADA5C60698F33A3B6A /* LanguagePreferencesTests.swift in Sources */,
 				213B50DDDEEA5C91AFDBAAF4 /* LanguageSwitchingWindowTests.swift in Sources */,
 				145F1A511170F18C910F6597 /* LegacyPreferencesMigrationTests.swift in Sources */,
 				C00AE5340DE7CBB8A0757517 /* LocalizationMessageTests.swift in Sources */,

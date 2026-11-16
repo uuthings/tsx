@@ -1,9 +1,99 @@
 import AppKit
+import SwiftUI
 import XCTest
 @testable import TranslateX
 
 @MainActor
 final class LanguageMenuTests: XCTestCase {
+    func testHostedMenusSharePersistentPreferencesAndRefreshAfterRangeChanges() async throws {
+        let suite = "TranslateXTests.HostedLanguageMenus.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = AppPreferences(defaults: defaults)
+        let model = TranslationModel(languagePreferences: preferences)
+        let languages = [TranslationLanguage(id: "en", name: "English"), .init(id: "fr", name: "French"), .init(id: "de", name: "German")]
+        let host = NSHostingView(rootView: TranslateXThemeHost(preferences: preferences) {
+            HStack {
+                LanguageMenu(label: "Source language", selection: Binding(get: { model.source }, set: { model.source = $0 }),
+                             languages: languages, includeAuto: true, preferenceSide: .source)
+                LanguageMenu(label: "Target language", selection: Binding(get: { model.target }, set: { model.target = $0 }),
+                             languages: languages, preferenceSide: .target)
+            }
+        })
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 150), styleMask: [.titled], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = host
+        defer { panel.close() }
+        panel.orderFront(nil)
+        func menus(_ view: NSView) -> [LanguageMenuControl] {
+            if let menu = view as? LanguageMenuControl { return [menu] }
+            return view.subviews.flatMap(menus)
+        }
+        for _ in 0..<30 {
+            host.layoutSubtreeIfNeeded()
+            if menus(host).count == 2 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let source = try XCTUnwrap(menus(host).first { $0.accessibilityLabel() == "Source language" })
+        let target = try XCTUnwrap(menus(host).first { $0.accessibilityLabel() == "Target language" })
+        try invoke(item("fr", in: source.selectionMenu()))
+        try invoke(item("de", in: target.selectionMenu()))
+        XCTAssertEqual(preferences.recentSourceLanguages, ["fr"])
+        XCTAssertEqual(preferences.recentTargetLanguages, ["de"])
+        preferences.setEnabledLanguages(["en", "de"], for: .source)
+        for _ in 0..<30 {
+            host.layoutSubtreeIfNeeded()
+            if source.languages.map(\.id) == ["en", "de"], model.source == "auto" { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(source.languages.map(\.id), ["en", "de"])
+        XCTAssertEqual(model.source, "auto")
+        XCTAssertEqual(selectableItems(source.selectionMenu()).compactMap { $0.representedObject as? String }, ["auto", "en", "de"])
+        XCTAssertEqual(target.languages, languages)
+        XCTAssertEqual(target.recentLanguageIdentifiers, ["de"])
+        XCTAssertTrue(preferences.recentSourceLanguages.isEmpty)
+    }
+
+    func testRecentGroupPreservesRecencyWithoutDuplicatesAndSeparatesOnlyNonemptyGroups() {
+        let control = makeControl()
+        control.selection = "fr"
+        control.usesLanguageGroups = true
+        control.recentLanguageIdentifiers = ["fr", "fr", "missing"]
+        let menu = control.selectionMenu()
+        XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["fr", "en"])
+        XCTAssertEqual(menu.items.filter(\.isSeparatorItem).count, 1)
+        XCTAssertEqual(menu.items.filter(\.isSectionHeader).map(\.title), [L10n.string("Recent languages"), L10n.string("Other languages")])
+        XCTAssertEqual(selectableItems(menu).filter { $0.state == .on }.map(\.title), ["Français — catalog label"])
+    }
+
+    func testRecentOnlyMenuHasNoSeparatorEvenWithAutomaticDetection() {
+        let control = makeControl()
+        control.usesLanguageGroups = true
+        control.includeAuto = true
+        control.recentLanguageIdentifiers = ["fr", "en"]
+        let menu = control.selectionMenu()
+        XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["auto", "fr", "en"])
+        XCTAssertFalse(menu.items.contains(where: \.isSeparatorItem))
+        XCTAssertEqual(menu.items.filter(\.isSectionHeader).map(\.title), [L10n.string("Recent languages")])
+    }
+
+    func testFirstUseHasOnlyAllLanguagesAndExcludedCurrentSelectionIsNotReinserted() {
+        let control = makeControl()
+        control.usesLanguageGroups = true
+        control.selection = "ja"
+        control.preservesUnavailableSelection = false
+        let menu = control.selectionMenu()
+        XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["en", "fr"])
+        XCTAssertFalse(menu.items.contains(where: \.isSeparatorItem))
+        XCTAssertEqual(menu.items.filter(\.isSectionHeader).map(\.title), [L10n.string("All languages")])
+        control.languages = []
+        let empty = control.selectionMenu()
+        XCTAssertTrue(selectableItems(empty).isEmpty)
+        XCTAssertFalse(empty.items.contains(where: \.isSeparatorItem))
+        XCTAssertEqual(empty.items.last?.title, L10n.string("No enabled languages for this service"))
+        XCTAssertEqual(empty.items.last?.isEnabled, false)
+    }
+
     func testAutomaticAndManualSelectionsHaveExactlyOneCheckmark() async throws {
         let control = makeControl()
         control.includeAuto = true

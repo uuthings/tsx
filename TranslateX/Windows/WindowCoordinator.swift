@@ -94,7 +94,7 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         L10n.apply(preferences.interfaceLanguage)
         presentedLayout = preferences.translationLayout
         self.services = services
-        inputModel = TranslationModel(automaticallyTranslates: true, services: services)
+        inputModel = TranslationModel(automaticallyTranslates: true, services: services, languagePreferences: preferences)
         speechSession = TranslationSpeechSession(model: inputModel, playback: speech ?? SpeechPlaybackController())
         super.init()
         inputModel.target = preferences.defaultTarget

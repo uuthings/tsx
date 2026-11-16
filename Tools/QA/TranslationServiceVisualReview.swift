@@ -1096,6 +1096,18 @@ final class TranslationServiceVisualReview: NSObject {
         preferences.translationLayout = scene.contains("stacked") ? .stacked : .sideBySide
         preferences.appearance = theme.hasPrefix("dark") ? .dark : .light
         preferences.material = theme.contains("glass") ? .glass : .light
+        if CommandLine.arguments.contains("--review-recent-languages") {
+            for identifier in ["de", "fr", "zh-Hans", "ja", "en"] {
+                preferences.recordLanguageChoice(identifier, for: .source)
+            }
+            for identifier in ["fr", "ko", "ja", "en", "zh-Hans"] {
+                preferences.recordLanguageChoice(identifier, for: .target)
+            }
+        }
+        if CommandLine.arguments.contains("--review-limited-languages") {
+            preferences.setEnabledLanguages(["zh-Hans", "en", "ja"], for: .source)
+            preferences.setEnabledLanguages(["zh-Hans", "en", "ja"], for: .target)
+        }
         let fixture = VisualCodexAccount(scene == "account-code" ? .deviceCode : scene == "account-committing" ? .committing : scene == "account-ready" ? .signedIn : .signedOut)
         self.fixture = fixture
         let services = TranslationServiceStore(defaults: defaults, credentials: VisualCredentialStore(),
@@ -1241,7 +1253,7 @@ final class TranslationServiceVisualReview: NSObject {
             let reviewSource = isSpeechWord ? "serendipity" : "Good design makes complex things feel effortless.\nKeep useful tools close to the text.\nSmall adjustments can bring noticeable improvements."
             let reviewTarget = isSpeechWord ? "意外发现美好事物的幸运" : "好的设计，让复杂的事情变得轻松。\n让常用工具贴近内容。\n小小的调整，也能带来明显的改善。"
             if scene.contains("partial") || scene.contains("long-name") || scene.contains("interactive") { try? services.select(deepSeek.id) }
-            let model = TranslationModel(automaticallyTranslates: true, services: services, remoteProvider: { _, _, partial in
+            let model = TranslationModel(automaticallyTranslates: true, services: services, languagePreferences: preferences, remoteProvider: { _, _, partial in
                 WorkspaceReviewProvider(source: reviewSource, target: reviewTarget, partial: partial, fragment: scene.contains("partial"))
             })
             workspaceModel = model

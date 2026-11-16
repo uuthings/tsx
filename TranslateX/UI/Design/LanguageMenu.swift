@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+private struct TranslationLanguagePreferencesKey: EnvironmentKey {
+    static let defaultValue: AppPreferences? = nil
+}
+
+extension EnvironmentValues {
+    var translationLanguagePreferences: AppPreferences? {
+        get { self[TranslationLanguagePreferencesKey.self] }
+        set { self[TranslationLanguagePreferencesKey.self] = newValue }
+    }
+}
+
 /// A native menu with a trailing disclosure mark. SwiftUI's macOS Menu otherwise
 /// extracts the label's image and moves it before the text on newer systems.
 struct LanguageMenu: NSViewRepresentable {
@@ -16,7 +27,9 @@ struct LanguageMenu: NSViewRepresentable {
     var grouped = false
     var screenshotChevron = false
     var allowsCompression = false
+    var preferenceSide: TranslationSide? = nil
     @Environment(\.translateXTheme) private var theme
+    @Environment(\.translationLanguagePreferences) private var preferences
 
     func makeNSView(context: Context) -> LanguageMenuControl { LanguageMenuControl() }
 
@@ -29,7 +42,10 @@ struct LanguageMenu: NSViewRepresentable {
     }
 
     func updateNSView(_ control: LanguageMenuControl, context: Context) {
-        control.languages = languages
+        control.languages = preferenceSide.flatMap { side in preferences.map { $0.filterLanguages(languages, for: side) } } ?? languages
+        control.usesLanguageGroups = preferenceSide != nil
+        control.recentLanguageIdentifiers = preferenceSide.flatMap { preferences?.recentLanguages(for: $0) } ?? []
+        control.preservesUnavailableSelection = preferenceSide.flatMap { preferences?.isLanguageEnabled(selection, for: $0) } ?? true
         control.includeAuto = includeAuto
         control.selection = selection
         control.displayTitle = displayTitle
@@ -38,7 +54,13 @@ struct LanguageMenu: NSViewRepresentable {
         control.grouped = grouped
         control.screenshotChevron = screenshotChevron
         control.hoverColor = NSColor(theme.ink.opacity(0.06))
-        control.onSelect = { selection = $0 }
+        control.onSelect = { identifier in
+            if let preferenceSide {
+                guard preferences?.isLanguageEnabled(identifier, for: preferenceSide) != false else { return }
+                preferences?.recordLanguageChoice(identifier, for: preferenceSide)
+            }
+            selection = identifier
+        }
         control.isEnabled = enabled && context.environment.isEnabled
         control.hoverCursor = theme.hoverCursor
         control.labelFont = .systemFont(ofSize: 12, weight: prominent ? .semibold : .regular)
@@ -54,6 +76,9 @@ struct LanguageMenu: NSViewRepresentable {
 final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
     var languages: [TranslationLanguage] = []
     var includeAuto = false
+    var usesLanguageGroups = false
+    var recentLanguageIdentifiers: [String] = []
+    var preservesUnavailableSelection = true
     var selection = "auto"
     var displayTitle: String?
     var onSelect: ((String) -> Void)?
@@ -200,12 +225,35 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
         menu.delegate = self
         if includeAuto {
             menu.addItem(item(name: L10n.string("Detect language"), id: "auto"))
-            menu.addItem(.separator())
+            if !usesLanguageGroups { menu.addItem(.separator()) }
         }
-        if selection != "auto", !languages.contains(where: { $0.id == selection }) {
+        if preservesUnavailableSelection, selection != "auto", !languages.contains(where: { $0.id == selection }) {
             menu.addItem(item(name: LanguageCatalog.displayName(for: selection), id: selection))
         }
-        for language in languages { menu.addItem(item(name: language.name, id: language.id)) }
+        if usesLanguageGroups {
+            var seen = Set<String>()
+            let recent = recentLanguageIdentifiers.compactMap { id in
+                languages.first { $0.id == id }
+            }.filter { seen.insert($0.id).inserted }.prefix(AppPreferences.recentLanguageLimit)
+            let recentIDs = Set(recent.map(\.id))
+            let remaining = languages.filter { !recentIDs.contains($0.id) }
+            if !recent.isEmpty {
+                menu.addItem(.sectionHeader(title: L10n.string("Recent languages")))
+                for language in recent { menu.addItem(item(name: language.name, id: language.id)) }
+            }
+            if !remaining.isEmpty {
+                if !recent.isEmpty { menu.addItem(.separator()) }
+                menu.addItem(.sectionHeader(title: L10n.string(recent.isEmpty ? "All languages" : "Other languages")))
+                for language in remaining { menu.addItem(item(name: language.name, id: language.id)) }
+            }
+            if languages.isEmpty {
+                let empty = NSMenuItem(title: L10n.string("No enabled languages for this service"), action: nil, keyEquivalent: "")
+                empty.isEnabled = false
+                menu.addItem(empty)
+            }
+        } else {
+            for language in languages { menu.addItem(item(name: language.name, id: language.id)) }
+        }
         return menu
     }
 

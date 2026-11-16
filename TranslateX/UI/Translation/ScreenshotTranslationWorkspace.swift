@@ -106,7 +106,8 @@ struct ScreenshotTranslationWorkspace: View {
                 LanguageMenu(label: L10n.string(side == .source ? "Source language" : "Target language"),
                     selection: side == .source ? $model.source : $model.target,
                     languages: catalog.languages(for: model.serviceConfiguration, asTarget: side == .target),
-                    includeAuto: side == .source, prominent: false, enabled: !model.isComposing, maximumWidth: 150)
+                    includeAuto: side == .source, prominent: false, enabled: !model.isComposing, maximumWidth: 150,
+                    preferenceSide: side)
             } else {
                 Text(LanguageCatalog.displayName(for: side == .source ? model.source : model.target)).font(.system(size: 12))
             }

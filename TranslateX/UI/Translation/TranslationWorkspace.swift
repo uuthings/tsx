@@ -116,7 +116,7 @@ struct TranslationWorkspace: View {
                 includeAuto: side == .source && model.inputSide == .source,
                 prominent: !compact, enabled: !model.isComposing,
                 maximumWidth: speechSession == nil ? .greatestFiniteMagnitude : 140,
-                allowsCompression: speechSession != nil)
+                allowsCompression: speechSession != nil, preferenceSide: side)
                 .fixedSize(horizontal: speechSession == nil, vertical: true)
                 .layoutPriority(1)
         } else {
