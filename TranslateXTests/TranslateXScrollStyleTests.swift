@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class TranslateXScrollStyleTests: XCTestCase {
-    func testLanguagePickerIndicatorStaysVisibleAtRestAndAlignsWithFieldEdge() async throws {
+    func testLanguagePickerUsesOneOverlayTrackAndKeepsThumbInsideNativeDrawingBounds() async throws {
         _ = NSApplication.shared
         let fixture = try isolatedWindows()
         let preferred = NSScroller.preferredScrollerStyle
@@ -17,35 +17,32 @@ final class TranslateXScrollStyleTests: XCTestCase {
         defer { window.close() }
         window.contentView = host
         window.orderFront(nil)
-        try await Task.sleep(for: .seconds(2))
+        try await Task.sleep(for: .milliseconds(200))
         let scroll = try XCTUnwrap(findScrollView(host))
         let scroller = try XCTUnwrap(scroll.verticalScroller as? TranslateXScroller)
-        XCTAssertEqual(scroll.scrollerStyle, .legacy, "The picker must not inherit overlay fade-on-idle behavior")
-        XCTAssertFalse(scroller.isHiddenOrHasHiddenAncestor)
-        XCTAssertEqual(scroller.alphaValue, 1)
-        XCTAssertGreaterThan(scroller.knobDrawingRect.height, 0)
-        XCTAssertEqual(scroller.convert(scroller.knobDrawingRect, to: host).maxX, host.bounds.maxX - 22, accuracy: 0.5)
-        let bitmap = try XCTUnwrap(scroller.bitmapImageRepForCachingDisplay(in: scroller.bounds))
-        scroller.cacheDisplay(in: scroller.bounds, to: bitmap)
-        let rightEdgeHasInk = (0..<bitmap.pixelsHigh).contains { y in
-            guard let color = bitmap.colorAt(x: bitmap.pixelsWide - 2, y: y)?.usingColorSpace(.deviceRGB) else { return false }
-            return color.alphaComponent > 0.1 && max(color.redComponent, color.greenComponent, color.blueComponent) < 0.8
+        XCTAssertEqual(findScrollViews(host).filter(\.hasVerticalScroller).count, 1)
+        XCTAssertEqual(scroll.scrollerStyle, .overlay)
+        XCTAssertTrue(TranslateXScroller.isCompatibleWithOverlayScrollers)
+        for offset in [0.0, 200, 450, 100, 600] {
+            scroll.documentView?.scroll(NSPoint(x: 0, y: offset))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            scroll.flashScrollers()
+            try await Task.sleep(for: .milliseconds(100))
+            XCTAssertTrue(scroll.verticalScroller === scroller)
+            let knob = scroller.knobDrawingRect
+            XCTAssertGreaterThan(knob.height, 0)
+            XCTAssertTrue(scroller.rect(for: .knob).contains(knob), "Drawing must stay inside native track: \(scroller.rect(for: .knob)); drawing: \(knob)")
+            XCTAssertEqual(scroller.convert(knob, to: host).maxX, host.bounds.maxX - 22, accuracy: 0.5)
+            XCTAssertEqual(scroller.testPart(scroller.convert(NSPoint(x: knob.maxX - 1, y: knob.midY), to: nil)), .knob)
         }
-        XCTAssertTrue(rightEdgeHasInk, "Native legacy track clipping must not cut off the visible thumb's right edge")
-        let knob = scroller.knobDrawingRect
-        XCTAssertEqual(scroller.testPart(scroller.convert(NSPoint(x: knob.maxX - 1, y: knob.midY), to: nil)), .knob)
-        let origin = scroll.contentView.bounds.origin
-        scroll.documentView?.scroll(NSPoint(x: 0, y: 200))
-        scroll.reflectScrolledClipView(scroll.contentView)
-        XCTAssertNotEqual(scroll.contentView.bounds.origin, origin)
         XCTAssertGreaterThan(scroller.doubleValue, 0)
         XCTAssertEqual(NSScroller.preferredScrollerStyle, preferred)
     }
 
-    func testPersistentIndicatorHidesForShortContentAndReturnsWhenContentGrows() async throws {
+    func testOverlayIndicatorHidesForShortContentAndReturnsWhenContentGrows() async throws {
         _ = NSApplication.shared
         let host = NSHostingView(rootView: ScrollView {
-            Color.clear.frame(height: 900).translateXScrollContent(persistentVerticalIndicator: true)
+            Color.clear.frame(height: 900).translateXScrollContent(alignsVerticalKnob: true)
         })
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
                               styleMask: [.titled], backing: .buffered, defer: false)
@@ -55,15 +52,15 @@ final class TranslateXScrollStyleTests: XCTestCase {
         window.orderFront(nil)
         for height in [900.0, 80, 900] {
             host.rootView = ScrollView {
-                Color.clear.frame(height: height).translateXScrollContent(persistentVerticalIndicator: true)
+                Color.clear.frame(height: height).translateXScrollContent(alignsVerticalKnob: true)
             }
             try await Task.sleep(for: .milliseconds(200))
             let scroll = try XCTUnwrap(findScrollView(host))
             let scroller = try XCTUnwrap(scroll.verticalScroller as? TranslateXScroller)
-            XCTAssertEqual(scroll.scrollerStyle, .legacy)
+            XCTAssertEqual(scroll.scrollerStyle, .overlay)
             XCTAssertEqual(scroller.isHidden, height < 200)
             if height > 200 {
-                XCTAssertEqual(scroller.convert(scroller.knobDrawingRect, to: scroll).maxX, scroll.bounds.maxX, accuracy: 0.5)
+                XCTAssertEqual(scroller.convert(scroller.knobDrawingRect, to: scroll).maxX, scroll.bounds.maxX - TranslateXScrollStyle.verticalKnobTrailingInset, accuracy: 0.5)
             }
         }
     }

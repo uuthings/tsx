@@ -109,11 +109,12 @@ struct TranslationLanguageSelection: View {
                         .frame(minHeight: 30, alignment: .leading)
                         .accessibilityIdentifier("settings.languages.\(side == .source ? "source" : "target").\(language.id)")
                     }
-                }.padding(.trailing, 6).padding(.vertical, 2).translateXScrollContent(persistentVerticalIndicator: true)
+                }.padding(.trailing, 12).padding(.vertical, 2).translateXScrollContent(alignsVerticalKnob: true)
                 if visibleLanguages.isEmpty {
                     Text("No matching languages").font(.system(size: 12)).foregroundStyle(p.muted).padding(.vertical, 16)
                 }
-            }.frame(height: 252).scrollIndicators(.visible, axes: .vertical)
+            }.id(query).frame(height: 252).scrollIndicators(.automatic, axes: .vertical)
+                .padding(.trailing, -TranslateXScrollStyle.verticalKnobTrailingInset)
             HStack {
                 Text(L10n.string(enabled.count < 2 ? "Select at least 2 languages to save." : "Keep at least 2 languages."))
                     .font(.system(size: 11)).foregroundStyle(enabled.count < 2 ? p.error : p.muted)
