@@ -9,6 +9,10 @@
 - 构建入口见 [BUILDING.md](Docs/BUILDING.md)，已测范围与未解决问题见 [Validation.md](Docs/Validation.md)。发布按 [RELEASING.md](Docs/RELEASING.md) 执行。
 - 开发授权不代表账号登录、上传、公证、推送、创建 Tag 或 Release、网站部署等发布授权。已有明确授权按其范围执行，不反复确认。
 
+## 本地项目记忆
+
+主要工作副本的 `memory/` 仅在本机保存。目录存在时，依次读取 `rules.md`、`project.md`、`now.md` 和近期 `history.md`，核对实际工作树；有并行工作记录时先读相关摘要。工作中记录重要变化，收尾更新受影响的记录。新克隆沿用本文件的开发约定；已有记忆暂时不可用时说明缺口，避免在子目录重复建立。
+
 ## 产品与架构
 
 - TSX 是免费、MIT 开源的 macOS 原生应用。Apple 本地翻译默认；外部 API、兼容接口、本地模型和实验性账号服务由用户主动配置。
