@@ -1,39 +1,47 @@
 import AppKit
 import SwiftUI
 
-/// Native overlay scrolling with a shared narrow thumb and no opaque track.
-/// AppKit retains scrolling, dragging, accessibility and its automatic fade.
+/// Native scrolling with a shared narrow thumb and no opaque track.
+/// Most surfaces use overlay fading; language pickers keep the thumb visible.
 @MainActor
 enum TranslateXScrollStyle {
-    static func apply(to scrollView: NSScrollView) {
-        if scrollView.hasVerticalScroller, !(scrollView.verticalScroller is TranslateXScroller) {
-            scrollView.verticalScroller = makeScroller(vertical: true)
+    static func apply(to scrollView: NSScrollView, persistentVerticalIndicator: Bool = false) {
+        if scrollView.hasVerticalScroller,
+           !(scrollView.verticalScroller is TranslateXScroller)
+            || (scrollView.verticalScroller is TranslateXPersistentScroller) != persistentVerticalIndicator {
+            scrollView.verticalScroller = makeScroller(vertical: true, persistent: persistentVerticalIndicator)
         }
         if scrollView.hasHorizontalScroller, !(scrollView.horizontalScroller is TranslateXScroller) {
             scrollView.horizontalScroller = makeScroller(vertical: false)
         }
-        if scrollView.scrollerStyle != .overlay { scrollView.scrollerStyle = .overlay }
+        // A persistent picker indicator uses native legacy visibility rather
+        // than fighting the overlay scroller's system-controlled fade.
+        let style: NSScroller.Style = persistentVerticalIndicator ? .legacy : .overlay
+        if scrollView.scrollerStyle != style { scrollView.scrollerStyle = style }
         scrollView.autohidesScrollers = true
+        (scrollView.verticalScroller as? TranslateXScroller)?.alignsKnobToTrailingEdge = persistentVerticalIndicator
         scrollView.verticalScroller?.controlSize = .small
         scrollView.horizontalScroller?.controlSize = .small
     }
 
-    private static func makeScroller(vertical: Bool) -> TranslateXScroller {
+    private static func makeScroller(vertical: Bool, persistent: Bool = false) -> TranslateXScroller {
         // NSScroller establishes its axis from the initial frame. Give each
         // axis valid knob geometry before mounting instead of depending on a
         // later AppKit tiling pass to correct a zero-frame horizontal scroller.
         let thickness = NSScroller.scrollerWidth(for: .small, scrollerStyle: .overlay)
-        return TranslateXScroller(frame: NSRect(x: 0, y: 0,
+        let frame = NSRect(x: 0, y: 0,
             width: vertical ? thickness : thickness * 2,
-            height: vertical ? thickness * 2 : thickness))
+            height: vertical ? thickness * 2 : thickness)
+        return persistent ? TranslateXPersistentScroller(frame: frame) : TranslateXScroller(frame: frame)
     }
 }
 
 @MainActor
-final class TranslateXScroller: NSScroller {
+class TranslateXScroller: NSScroller {
     override class var isCompatibleWithOverlayScrollers: Bool { true }
     private var hovered = false
     private var hoverArea: NSTrackingArea?
+    var alignsKnobToTrailingEdge = false { didSet { if oldValue != alignsKnobToTrailingEdge { needsDisplay = true } } }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -46,31 +54,52 @@ final class TranslateXScroller: NSScroller {
     override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
 
-    override func drawKnob() {
+    var knobDrawingRect: NSRect {
         var knob = rect(for: .knob)
-        guard knob.width > 0, knob.height > 0 else { return }
+        guard knob.width > 0, knob.height > 0 else { return .zero }
         let width: CGFloat = hovered || hitPart == .knob ? 7 : 5
         if bounds.height > bounds.width {
-            knob.origin.x = knob.midX - width / 2
+            knob.origin.x = alignsKnobToTrailingEdge ? bounds.maxX - width : knob.midX - width / 2
             knob.size.width = width
         } else {
             knob.origin.y = knob.midY - width / 2
             knob.size.height = width
         }
+        return knob
+    }
+
+    override func drawKnob() {
+        let knob = knobDrawingRect
+        guard !knob.isEmpty else { return }
+        let radius = min(knob.width, knob.height) / 2
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         NSColor.labelColor.withAlphaComponent(contrast ? 0.8 : hovered ? 0.5 : 0.32).setFill()
-        NSBezierPath(roundedRect: knob, xRadius: width / 2, yRadius: width / 2).fill()
+        NSBezierPath(roundedRect: knob, xRadius: radius, yRadius: radius).fill()
     }
 
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 }
 
+/// Opt out of AppKit's overlay layers, which clip and fade the native knob.
+/// Native scrolling and drag tracking remain in NSScroller.
+@MainActor
+final class TranslateXPersistentScroller: TranslateXScroller {
+    override class var isCompatibleWithOverlayScrollers: Bool { false }
+    override func draw(_ dirtyRect: NSRect) { drawKnob() }
+    override func testPart(_ point: NSPoint) -> NSScroller.Part {
+        if knobDrawingRect.contains(convert(point, from: nil)) { return .knob }
+        return super.testPart(point)
+    }
+}
+
 /// Place in the content of a SwiftUI ScrollView, never above its container.
 struct TranslateXScrollAnchor: NSViewRepresentable {
     var overlayVerticalIndicator = false
+    var persistentVerticalIndicator = false
     func makeNSView(context: Context) -> AnchorView { AnchorView() }
     func updateNSView(_ view: AnchorView, context: Context) {
         view.overlayVerticalIndicator = overlayVerticalIndicator
+        view.persistentVerticalIndicator = persistentVerticalIndicator
         view.configure()
     }
     static func dismantleNSView(_ view: AnchorView, coordinator: ()) { view.stopObserving() }
@@ -80,6 +109,7 @@ struct TranslateXScrollAnchor: NSViewRepresentable {
         private var observations: [NSKeyValueObservation] = []
         private var configurationScheduled = false
         var overlayVerticalIndicator = false
+        var persistentVerticalIndicator = false
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func viewDidMoveToSuperview() { super.viewDidMoveToSuperview(); configure() }
@@ -105,8 +135,8 @@ struct TranslateXScrollAnchor: NSViewRepresentable {
                     scrollView.observe(\.hasHorizontalScroller) { [weak self] _, _ in self?.scheduleConfiguration() }
                 ]
             }
-            if overlayVerticalIndicator, !scrollView.hasVerticalScroller { scrollView.hasVerticalScroller = true }
-            TranslateXScrollStyle.apply(to: scrollView)
+            if overlayVerticalIndicator || persistentVerticalIndicator, !scrollView.hasVerticalScroller { scrollView.hasVerticalScroller = true }
+            TranslateXScrollStyle.apply(to: scrollView, persistentVerticalIndicator: persistentVerticalIndicator)
         }
 
         nonisolated private func scheduleConfiguration() {
@@ -131,7 +161,8 @@ struct TranslateXScrollAnchor: NSViewRepresentable {
 }
 
 extension View {
-    func translateXScrollContent(overlayVerticalIndicator: Bool = false) -> some View {
-        background(TranslateXScrollAnchor(overlayVerticalIndicator: overlayVerticalIndicator).frame(width: 0, height: 0))
+    func translateXScrollContent(overlayVerticalIndicator: Bool = false, persistentVerticalIndicator: Bool = false) -> some View {
+        background(TranslateXScrollAnchor(overlayVerticalIndicator: overlayVerticalIndicator,
+            persistentVerticalIndicator: persistentVerticalIndicator).frame(width: 0, height: 0))
     }
 }
