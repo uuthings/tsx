@@ -225,7 +225,6 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
         menu.delegate = self
         if includeAuto {
             menu.addItem(item(name: L10n.string("Detect language"), id: "auto"))
-            if !usesLanguageGroups { menu.addItem(.separator()) }
         }
         if preservesUnavailableSelection, selection != "auto", !languages.contains(where: { $0.id == selection }) {
             menu.addItem(item(name: LanguageCatalog.displayName(for: selection), id: selection))
@@ -238,12 +237,10 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
             let recentIDs = Set(recent.map(\.id))
             let remaining = languages.filter { !recentIDs.contains($0.id) }
             if !recent.isEmpty {
-                menu.addItem(.sectionHeader(title: L10n.string("Recent languages")))
                 for language in recent { menu.addItem(item(name: language.name, id: language.id)) }
             }
             if !remaining.isEmpty {
                 if !recent.isEmpty { menu.addItem(.separator()) }
-                menu.addItem(.sectionHeader(title: L10n.string(recent.isEmpty ? "All languages" : "Other languages")))
                 for language in remaining { menu.addItem(item(name: language.name, id: language.id)) }
             }
             if languages.isEmpty {

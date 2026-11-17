@@ -25,8 +25,20 @@ enum UsageRequestTimeFormat {
 
 /// Combines retained request details with older daily totals, without fabricating
 /// request rows or treating unreported API metrics as zero.
-struct TranslationUsageDashboard {
-    struct Day: Identifiable {
+struct TranslationUsageDashboard: Sendable {
+    struct Query: Equatable, Sendable {
+        let start: Date
+        let end: Date
+        let service: String
+        let calendar: Calendar
+        init(start: Date, end: Date, service: String = "all", calendar: Calendar = .current) {
+            self.start = calendar.startOfDay(for: start)
+            self.end = calendar.startOfDay(for: end)
+            self.service = service
+            self.calendar = calendar
+        }
+    }
+    struct Day: Identifiable, Sendable {
         let date: Date
         var all = TranslationUsageTotals()
         var api = TranslationUsageTotals()
@@ -35,10 +47,12 @@ struct TranslationUsageDashboard {
     var all = TranslationUsageTotals()
     var api = TranslationUsageTotals()
     var days: [Day] = []
+    private(set) var daysByDate: [Date: Day] = [:]
     var records: [TranslationUsageRecord] = []
     var summarizedRequests = 0
     var unknownCosts: Int { max(0, api.requests - (api.costReports ?? 0)) }
     var unknownTokens: Int { max(0, api.requests - api.tokenReports) }
+    static let empty = TranslationUsageDashboard(records: [], summaries: [], start: .distantPast, end: .distantPast)
 
     init(records: [TranslationUsageRecord], summaries: [TranslationUsageDay],
          start: Date, end: Date, service: String = "all", calendar: Calendar = .current) {
@@ -66,6 +80,7 @@ struct TranslationUsageDashboard {
             byDay[date] = day
         }
         days = byDay.values.sorted { $0.date < $1.date }
+        daysByDate = byDay
     }
 }
 

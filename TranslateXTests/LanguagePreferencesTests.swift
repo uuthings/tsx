@@ -3,6 +3,39 @@ import XCTest
 
 @MainActor
 final class LanguagePreferencesTests: XCTestCase {
+    func testBulkCheckboxSelectsPartialScopeAndKeepsHiddenChoices() {
+        let catalog = ["en", "fr", "de", "ja"]
+        var draft = TranslationLanguageSelectionDraft(identifiers: ["en", "ja"])
+        XCTAssertEqual(draft.state(visible: ["en", "fr"], catalog: catalog), .mixed)
+        draft.toggleAll(visible: ["en", "fr"], catalog: catalog)
+        XCTAssertEqual(draft.enabled(in: catalog), ["en", "fr", "ja"])
+        XCTAssertEqual(draft.state(visible: ["en", "fr"], catalog: catalog), .on)
+        draft.toggleAll(visible: ["en", "fr"], catalog: catalog)
+        XCTAssertEqual(draft.enabled(in: catalog), ["ja"])
+        XCTAssertEqual(draft.state(visible: ["en", "fr"], catalog: catalog), .off)
+        draft.toggleAll(visible: [], catalog: catalog)
+        XCTAssertEqual(draft.enabled(in: catalog), ["ja"])
+    }
+
+    func testBulkSelectionRestoresDynamicCatalogAndDoesNotSaveInvalidDraft() throws {
+        try withPreferences { preferences, _ in
+            let catalog = ["en", "fr", "ja"]
+            var draft = TranslationLanguageSelectionDraft(identifiers: ["en"])
+            draft.toggleAll(visible: catalog, catalog: catalog)
+            XCTAssertNil(draft.identifiers)
+            XCTAssertEqual(draft.enabled(in: catalog + ["de"]), catalog + ["de"])
+            draft.toggleAll(visible: catalog, catalog: catalog)
+            XCTAssertEqual(draft.identifiers, [])
+            XCTAssertFalse(preferences.setEnabledLanguages(draft.identifiers, for: .source))
+            draft.set("fr", selected: true, catalog: catalog)
+            XCTAssertFalse(preferences.setEnabledLanguages(draft.identifiers, for: .source))
+            draft.set("ja", selected: true, catalog: catalog)
+            XCTAssertTrue(preferences.setEnabledLanguages(draft.identifiers, for: .source))
+            XCTAssertEqual(preferences.sourceLanguageIdentifiers, ["fr", "ja"])
+            XCTAssertNil(preferences.targetLanguageIdentifiers)
+        }
+    }
+
     func testRecentChoicesAreDistinctLimitedToFiveAndPersistSeparately() throws {
         try withPreferences { preferences, defaults in
             for id in ["en", "fr", "de", "it", "es", "ja", "fr", "en-US"] {

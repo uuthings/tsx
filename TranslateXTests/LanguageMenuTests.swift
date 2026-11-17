@@ -57,12 +57,14 @@ final class LanguageMenuTests: XCTestCase {
     func testRecentGroupPreservesRecencyWithoutDuplicatesAndSeparatesOnlyNonemptyGroups() {
         let control = makeControl()
         control.selection = "fr"
+        control.includeAuto = true
         control.usesLanguageGroups = true
         control.recentLanguageIdentifiers = ["fr", "fr", "missing"]
         let menu = control.selectionMenu()
-        XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["fr", "en"])
+        XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["auto", "fr", "en"])
+        XCTAssertEqual(menu.items.firstIndex(where: \.isSeparatorItem), 2, "Auto and recent choices are contiguous")
         XCTAssertEqual(menu.items.filter(\.isSeparatorItem).count, 1)
-        XCTAssertEqual(menu.items.filter(\.isSectionHeader).map(\.title), [L10n.string("Recent languages"), L10n.string("Other languages")])
+        XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
         XCTAssertEqual(selectableItems(menu).filter { $0.state == .on }.map(\.title), ["Français — catalog label"])
     }
 
@@ -74,7 +76,7 @@ final class LanguageMenuTests: XCTestCase {
         let menu = control.selectionMenu()
         XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["auto", "fr", "en"])
         XCTAssertFalse(menu.items.contains(where: \.isSeparatorItem))
-        XCTAssertEqual(menu.items.filter(\.isSectionHeader).map(\.title), [L10n.string("Recent languages")])
+        XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
     }
 
     func testFirstUseHasOnlyAllLanguagesAndExcludedCurrentSelectionIsNotReinserted() {
@@ -85,7 +87,7 @@ final class LanguageMenuTests: XCTestCase {
         let menu = control.selectionMenu()
         XCTAssertEqual(selectableItems(menu).compactMap { $0.representedObject as? String }, ["en", "fr"])
         XCTAssertFalse(menu.items.contains(where: \.isSeparatorItem))
-        XCTAssertEqual(menu.items.filter(\.isSectionHeader).map(\.title), [L10n.string("All languages")])
+        XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
         control.languages = []
         let empty = control.selectionMenu()
         XCTAssertTrue(selectableItems(empty).isEmpty)
@@ -102,6 +104,7 @@ final class LanguageMenuTests: XCTestCase {
             let menu = control.selectionMenu()
             let choices = selectableItems(menu)
             XCTAssertEqual(choices.compactMap { $0.representedObject as? String }, ["auto", "en", "fr"])
+            XCTAssertFalse(menu.items.contains(where: \.isSeparatorItem), "Auto remains in the language list when there are no recent choices")
             XCTAssertEqual(choices.filter { $0.state == .on }.compactMap { $0.representedObject as? String }, [selection])
             XCTAssertTrue(choices.filter { ($0.representedObject as? String) != selection }.allSatisfy { $0.state == .off })
         }

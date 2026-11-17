@@ -21,6 +21,87 @@ final class TranslationUsageDashboardTests: XCTestCase {
               outcome: .succeeded, completedAt: date ?? now, duration: 1, usage: usage, priceSnapshot: price)
     }
 
+    func testDashboardCacheSurvivesNavigationAndInvalidatesForNewRecordsAndClearing() async throws {
+        let store = TranslationUsageStore(defaults: try defaults(), now: now)
+        let query = TranslationUsageDashboard.Query(start: now, end: now)
+        let first = await store.dashboard(for: query)
+        XCTAssertEqual(first?.all.requests, 0)
+        XCTAssertNotNil(store.cachedDashboard(for: query))
+        let sameDay = TranslationUsageDashboard.Query(start: query.start, end: query.end)
+        XCTAssertNotNil(store.cachedDashboard(for: sameDay), "Reopening the page must not miss due to seconds in Date()")
+        let revision = store.dashboardRevision
+        store.finish(store.begin(configurationID: nil, model: "", purpose: .translation, now: now), outcome: .succeeded, now: now)
+        XCTAssertNotEqual(revision, store.dashboardRevision)
+        XCTAssertNil(store.cachedDashboard(for: query))
+        let updated = await store.dashboard(for: query)
+        XCTAssertEqual(updated?.all.requests, 1)
+        XCTAssertEqual(updated?.daysByDate[query.start]?.all.requests, 1)
+        store.clearAll()
+        XCTAssertNil(store.cachedDashboard(for: query))
+        let cleared = await store.dashboard(for: query)
+        XCTAssertEqual(cleared?.all.requests, 0)
+    }
+
+    func testDashboardCacheSeparatesServicesRangesAndTimeZones() async throws {
+        let defaults = try defaults(), id = UUID()
+        let rows = [record(id: nil), record(id: id, price: price(), usage: .init(inputTokens: 10, outputTokens: 20))]
+        defaults.set(try JSONEncoder().encode(TranslationUsageStore.Snapshot(records: rows, summaries: [])), forKey: TranslationUsageStore.StorageKey.snapshot)
+        let store = TranslationUsageStore(defaults: defaults, now: now)
+        let all = TranslationUsageDashboard.Query(start: now, end: now)
+        _ = await store.dashboard(for: all)
+        let local = TranslationUsageDashboard.Query(start: now, end: now, service: "apple")
+        XCTAssertNil(store.cachedDashboard(for: local))
+        let result = await store.dashboard(for: local)
+        XCTAssertEqual(result?.all.requests, 1)
+        XCTAssertEqual(result?.api.requests, 0)
+        XCTAssertNil(store.cachedDashboard(for: all), "Only one filtered snapshot is retained")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let utc = TranslationUsageDashboard.Query(start: now, end: now, calendar: calendar)
+        calendar.timeZone = TimeZone(secondsFromGMT: 3600)!
+        let shifted = TranslationUsageDashboard.Query(start: now, end: now, calendar: calendar)
+        XCTAssertNotEqual(utc, shifted)
+        let next = TranslationUsageDashboard.Query(start: now.addingTimeInterval(86400), end: now.addingTimeInterval(86400))
+        let empty = await store.dashboard(for: next)
+        XCTAssertEqual(empty?.all.requests, 0)
+    }
+
+    func testDashboardCacheRefreshesAfterPriceBackfillAndRetentionRollup() async throws {
+        let defaults = try defaults(), id = UUID()
+        defaults.set(try JSONEncoder().encode(TranslationUsageStore.Snapshot(records: [record(id: id, usage: .init(inputTokens: 1_000_000, outputTokens: 0))], summaries: [])), forKey: TranslationUsageStore.StorageKey.snapshot)
+        let store = TranslationUsageStore(defaults: defaults, now: now)
+        store.registerConfigurations([.init(id: id, name: "Fixture", kind: .openAI, endpoint: "https://api.openai.com/v1", model: "fixture")])
+        let query = TranslationUsageDashboard.Query(start: now, end: now)
+        let unpriced = await store.dashboard(for: query)
+        XCTAssertEqual(unpriced?.unknownCosts, 1)
+        XCTAssertTrue(store.pricing.installReferencePrices([price()]))
+        XCTAssertEqual(store.backfillMissingCosts(), 1)
+        XCTAssertNil(store.cachedDashboard(for: query))
+        let priced = await store.dashboard(for: query)
+        XCTAssertEqual(priced?.api.costs?["USD"], 2)
+        store.prune(now: now.addingTimeInterval(40 * 86400))
+        XCTAssertNil(store.cachedDashboard(for: query))
+        let rolledUp = await store.dashboard(for: query)
+        XCTAssertEqual(rolledUp?.all.requests, 1)
+        XCTAssertEqual(rolledUp?.summarizedRequests, 1)
+        XCTAssertEqual(rolledUp?.api.costs?["USD"], 2)
+    }
+
+    func testOverlappingDashboardLoadsCannotRepopulateClearedStatistics() async throws {
+        let defaults = try defaults(), id = UUID()
+        let rows = (0..<1000).map { _ in record(id: id, price: price(), usage: .init(inputTokens: 100, outputTokens: 40)) }
+        defaults.set(try JSONEncoder().encode(TranslationUsageStore.Snapshot(records: rows, summaries: [])), forKey: TranslationUsageStore.StorageKey.snapshot)
+        let store = TranslationUsageStore(defaults: defaults, now: now)
+        let query = TranslationUsageDashboard.Query(start: now, end: now)
+        let old = Task { await store.dashboard(for: query) }
+        await Task.yield()
+        store.clearAll()
+        let fresh = await store.dashboard(for: query)
+        _ = await old.value
+        XCTAssertEqual(fresh?.all.requests, 0)
+        XCTAssertEqual(store.cachedDashboard(for: query)?.all.requests, 0)
+    }
+
     func testDailyChartMetricsPreserveExactSmallCostsAndDistinguishMissingValues() throws {
         let id = UUID()
         let measured = record(id: id, price: price(input: 2, output: 4), usage: .init(inputTokens: 1, outputTokens: 2))

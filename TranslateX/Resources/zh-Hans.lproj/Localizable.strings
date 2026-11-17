@@ -1208,10 +1208,14 @@
 "%@ and %d more" = "%@，另有 %d 种语言";
 "Choose source languages" = "选择源语言";
 "Choose target languages" = "选择目标语言";
-"%d selected" = "已选择 %d 种";
+"%d selected" = "已选 %d 种";
 "Available choices also depend on the selected translation service." = "实际可选语言以当前翻译服务支持的范围为准。";
-"Find a language" = "查找语言";
+"Find a language" = "搜索语言";
 "No matching languages" = "没有匹配的语言";
 "Select at least 2 languages to save." = "至少选择 2 种语言后才能保存。";
 "Clear selection" = "清空选择";
 "Use all languages" = "使用全部语言";
+"Select" = "选择";
+"Select all" = "全选";
+"Select results" = "全选结果";
+"Loading statistics…" = "正在加载统计…";

@@ -126,8 +126,11 @@ final class TranslationUsageStore {
         let pricingProvider: String?
     }
 
-    private(set) var records: [TranslationUsageRecord]
-    private(set) var summaries: [TranslationUsageDay]
+    private(set) var records: [TranslationUsageRecord] { didSet { invalidateDashboard() } }
+    private(set) var summaries: [TranslationUsageDay] { didSet { invalidateDashboard() } }
+    private(set) var dashboardRevision = UUID()
+    @ObservationIgnored private var dashboardCache: (query: TranslationUsageDashboard.Query, value: TranslationUsageDashboard)?
+    @ObservationIgnored private var dashboardWork: (id: UUID, query: TranslationUsageDashboard.Query, task: Task<TranslationUsageDashboard, Never>)?
     let pricing: TranslationUsagePricing
     @ObservationIgnored private var configurations: [UUID: TranslationServiceConfiguration] = [:]
     private var recording: [String: Bool]
@@ -155,6 +158,43 @@ final class TranslationUsageStore {
         } else { records = []; summaries = [] }
         compact(now: now)
         if defaults.data(forKey: StorageKey.snapshot) != nil || defaults.data(forKey: StorageKey.records) != nil { flush() }
+    }
+
+    func cachedDashboard(for query: TranslationUsageDashboard.Query) -> TranslationUsageDashboard? {
+        dashboardCache?.query == query ? dashboardCache?.value : nil
+    }
+
+    /// Keep one bounded result across navigation. All totals and price estimates
+    /// run off the UI thread; simultaneous readers share the same calculation.
+    func dashboard(for query: TranslationUsageDashboard.Query) async -> TranslationUsageDashboard? {
+        if let cached = cachedDashboard(for: query) { return cached }
+        let revision = dashboardRevision
+        let work: (id: UUID, query: TranslationUsageDashboard.Query, task: Task<TranslationUsageDashboard, Never>)
+        if let pending = dashboardWork, pending.query == query {
+            work = pending
+        } else {
+            dashboardWork?.task.cancel()
+            let records = records, summaries = summaries
+            work = (UUID(), query, Task.detached(priority: .userInitiated) {
+                TranslationUsageDashboard(records: records, summaries: summaries,
+                    start: query.start, end: query.end, service: query.service, calendar: query.calendar)
+            })
+            dashboardWork = work
+        }
+        let value = await work.task.value
+        guard revision == dashboardRevision, !work.task.isCancelled else { return nil }
+        if dashboardWork?.id == work.id {
+            dashboardCache = (query, value)
+            dashboardWork = nil
+        }
+        return value
+    }
+
+    private func invalidateDashboard() {
+        dashboardRevision = UUID()
+        dashboardCache = nil
+        dashboardWork?.task.cancel()
+        dashboardWork = nil
     }
 
     /// Preserve an old global opt-out for existing services. New services use

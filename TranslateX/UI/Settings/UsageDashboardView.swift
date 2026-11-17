@@ -20,12 +20,22 @@ struct UsageDashboardView: View {
     @State private var pageSize = "10"
     @State private var confirmingClear = false
     @State private var availableWidth: CGFloat = 790
+    @State private var loadedDashboard: (request: DashboardRequest, value: TranslationUsageDashboard)?
+    private struct DashboardRequest: Equatable {
+        let query: TranslationUsageDashboard.Query
+        let revision: UUID
+    }
     private var palette: TranslationServicePalette { .init(theme: theme) }
     private var usage: TranslationUsageStore { store.usage }
     private var calendar: Calendar { .current }
-    private var snapshot: TranslationUsageDashboard {
-        .init(records: usage.records, summaries: usage.summaries, start: start, end: end, service: service)
+    private var dashboardRequest: DashboardRequest {
+        .init(query: .init(start: start, end: end, service: service, calendar: calendar), revision: usage.dashboardRevision)
     }
+    private var currentDashboard: TranslationUsageDashboard? {
+        let request = dashboardRequest
+        return loadedDashboard?.request == request ? loadedDashboard?.value : usage.cachedDashboard(for: request.query)
+    }
+    private var snapshot: TranslationUsageDashboard { currentDashboard ?? .empty }
     private var earliest: Date { (usage.records.map(\.completedAt) + usage.summaries.map(\.day)).min() ?? Date() }
     private var countPerPage: Int { Int(pageSize) ?? 10 }
     private var requestRows: [TranslationUsageRecord] {
@@ -54,10 +64,15 @@ struct UsageDashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
-                cards
-                chart
-                tableSection
-                clearSection
+                if currentDashboard != nil {
+                    cards
+                    chart
+                    tableSection
+                    clearSection
+                } else {
+                    ProgressView(L10n.string("Loading statistics…"))
+                        .frame(maxWidth: .infinity, minHeight: 250)
+                }
             }
             .font(.system(size: 12)).foregroundStyle(palette.ink)
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { availableWidth = $0 }
@@ -76,6 +91,12 @@ struct UsageDashboardView: View {
             }
         }
         .overlay { if confirmingClear { clearConfirmation } }
+        .task(id: dashboardRequest) {
+            let request = dashboardRequest
+            guard let value = await usage.dashboard(for: request.query),
+                  !Task.isCancelled, request == dashboardRequest else { return }
+            loadedDashboard = (request, value)
+        }
         .onChange(of: start) { resetRange() }
         .onChange(of: end) { resetRange() }
         .onChange(of: service) { resetRange(); pricePage = 1; confirmingClear = false }
@@ -206,7 +227,7 @@ struct UsageDashboardView: View {
         // The date picker excludes pre-Unix/future ranges. Iteration remains finite.
         return (0...count).compactMap { calendar.date(byAdding: .day, value: $0, to: first) }
     }
-    private func valuesByDay() -> [Date: TranslationUsageDashboard.Day] { Dictionary(uniqueKeysWithValues: snapshot.days.map { ($0.date, $0) }) }
+    private func valuesByDay() -> [Date: TranslationUsageDashboard.Day] { snapshot.daysByDate }
     private var chartMetric: UsageChartMetric { UsageChartMetric(rawValue: metric) ?? .requests }
     private func chartValue(_ day: TranslationUsageDashboard.Day?) -> Double? {
         chartMetric.value(in: day).map { NSDecimalNumber(decimal: $0).doubleValue }
@@ -380,11 +401,12 @@ struct UsageDashboardView: View {
         } else { Text(String(format: L10n.string("%d records"), requestRows.count)).font(.system(size: 11)).foregroundStyle(palette.muted) }
     }
     private var requestTable: some View {
-        ScrollView(.horizontal) {
+        let rows = pageRows
+        return ScrollView(.horizontal) {
             VStack(spacing: 0) {
                 requestHeader
-                if pageRows.isEmpty { emptyState("No request records in this range", icon: "chart.bar.xaxis") }
-                ForEach(pageRows) { record in requestRow(record); if record.id != pageRows.last?.id { Rectangle().fill(palette.line).frame(height: 1) } }
+                if rows.isEmpty { emptyState("No request records in this range", icon: "chart.bar.xaxis") }
+                ForEach(rows) { record in requestRow(record); if record.id != rows.last?.id { Rectangle().fill(palette.line).frame(height: 1) } }
             }.frame(width: max(650, availableWidth - 2)).translateXScrollContent()
         }.scrollIndicators(.automatic).background(palette.panel, in: RoundedRectangle(cornerRadius: 9))
             .clipShape(RoundedRectangle(cornerRadius: 9)).overlay(RoundedRectangle(cornerRadius: 9).stroke(palette.line, lineWidth: 1))

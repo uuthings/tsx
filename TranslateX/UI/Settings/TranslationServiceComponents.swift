@@ -204,6 +204,7 @@ struct TranslationServiceField: View {
     var trailingPadding: CGFloat = 10
     var onFocusChanged: ((Bool) -> Void)? = nil
     var focusRequest = 0
+    var leadingSymbol: String? = nil
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -215,10 +216,16 @@ struct TranslationServiceField: View {
         .textFieldStyle(.plain)
         .font(.system(size: 12))
         .foregroundStyle(p.ink)
-        .padding(.leading, 10)
+        .padding(.leading, leadingSymbol == nil ? 10 : 30)
         .padding(.trailing, trailingPadding)
         .frame(height: 32)
         .background(invalid ? p.errorFill : p.fill, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(alignment: .leading) {
+            if let leadingSymbol {
+                Image(systemName: leadingSymbol).font(.system(size: 12)).foregroundStyle(p.muted)
+                    .padding(.leading, 10).allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
         .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(invalid ? p.error.opacity(0.5) : p.line.opacity(0.34), lineWidth: 1) }
         .overlay { if focused { RoundedRectangle(cornerRadius: 7).stroke(p.accent.opacity(0.72), lineWidth: 2).padding(-1) } }
         .focused($focused)
