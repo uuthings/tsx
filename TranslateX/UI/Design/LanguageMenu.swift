@@ -29,6 +29,7 @@ struct LanguageMenu: NSViewRepresentable {
     var screenshotChevron = false
     var allowsCompression = false
     var preferenceSide: TranslationSide? = nil
+    var tracksRecentChoices = true
     @Environment(\.translateXTheme) private var theme
     @Environment(\.translationLanguagePreferences) private var preferences
 
@@ -45,7 +46,9 @@ struct LanguageMenu: NSViewRepresentable {
     func updateNSView(_ control: LanguageMenuControl, context: Context) {
         control.languages = preferenceSide.flatMap { side in preferences.map { $0.configuredLanguages(in: languages, for: side) } } ?? languages
         control.supportedIdentifiers = supportedLanguages.map { Set($0.map(\.id)) }
-        control.usesLanguageGroups = preferenceSide != nil
+        control.languageSide = preferenceSide
+        control.showsUnsupportedLanguages = preferences?.showsUnsupportedLanguages ?? true
+        control.usesLanguageGroups = preferenceSide != nil && tracksRecentChoices
         control.recentLanguageIdentifiers = preferenceSide.flatMap { preferences?.recentLanguages(for: $0) } ?? []
         control.preservesUnavailableSelection = preferenceSide == nil && supportedLanguages == nil
         control.includeAuto = includeAuto
@@ -59,7 +62,7 @@ struct LanguageMenu: NSViewRepresentable {
         control.onSelect = { identifier in
             if let preferenceSide {
                 guard preferences?.isLanguageEnabled(identifier, for: preferenceSide) != false else { return }
-                preferences?.recordLanguageChoice(identifier, for: preferenceSide)
+                if tracksRecentChoices { preferences?.recordLanguageChoice(identifier, for: preferenceSide) }
             }
             selection = identifier
         }
@@ -77,6 +80,8 @@ struct LanguageMenu: NSViewRepresentable {
 @MainActor
 final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
     var languages: [TranslationLanguage] = []
+    var languageSide: TranslationSide?
+    var showsUnsupportedLanguages = true
     var supportedIdentifiers: Set<String>?
     var includeAuto = false
     var usesLanguageGroups = false
@@ -199,7 +204,12 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
         let name = displayTitle ?? languages.first(where: { $0.id == selection })?.name ?? (selection == "auto" ? L10n.string("Detect language") : LanguageCatalog.displayName(for: selection))
         let ink = contentTintColor ?? NSColor.labelColor
         let labelColor = ink.withAlphaComponent(ink.alphaComponent * (isEnabled ? 1 : 0.45))
-        let title = NSMutableAttributedString(string: name + "  ", attributes: [
+        let needsReplacement = !supports(selection)
+        let caption = needsReplacement ? String(format: L10n.string("%@ · Choose again"), name) : name
+        let help = needsReplacement ? String(format: L10n.string("This service does not support %@. Choose another language or service."), name) : nil
+        toolTip = help
+        setAccessibilityHelp(help)
+        let title = NSMutableAttributedString(string: caption + "  ", attributes: [
             .font: labelFont,
             .foregroundColor: labelColor
         ])
@@ -233,27 +243,36 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
         if preservesUnavailableSelection, selection != "auto", !languages.contains(where: { $0.id == selection }) {
             menu.addItem(item(name: LanguageCatalog.displayName(for: selection), id: selection))
         }
+        let available = languages.filter { supports($0.id) }
         if usesLanguageGroups {
             var seen = Set<String>()
             let recent = recentLanguageIdentifiers.compactMap { id in
-                languages.first { $0.id == id }
+                available.first { $0.id == id }
             }.filter { seen.insert($0.id).inserted }.prefix(AppPreferences.recentLanguageLimit)
             let recentIDs = Set(recent.map(\.id))
-            let remaining = languages.filter { !recentIDs.contains($0.id) }
-            if !recent.isEmpty {
-                for language in recent { menu.addItem(item(name: language.name, id: language.id)) }
-            }
-            if !remaining.isEmpty {
-                if !recent.isEmpty { menu.addItem(.separator()) }
-                for language in remaining { menu.addItem(item(name: language.name, id: language.id)) }
-            }
-            if languages.isEmpty {
-                let empty = NSMenuItem(title: L10n.string("No enabled languages for this service"), action: nil, keyEquivalent: "")
-                empty.isEnabled = false
-                menu.addItem(empty)
-            }
+            let remaining = available.filter { !recentIDs.contains($0.id) }
+            for language in recent { menu.addItem(item(name: language.name, id: language.id)) }
+            if !recent.isEmpty && !remaining.isEmpty { menu.addItem(.separator()) }
+            for language in remaining { menu.addItem(item(name: language.name, id: language.id)) }
         } else {
-            for language in languages { menu.addItem(item(name: language.name, id: language.id)) }
+            for language in available { menu.addItem(item(name: language.name, id: language.id)) }
+        }
+        if available.isEmpty, let side = languageSide {
+            let message = side == .source
+                ? L10n.string("This service supports none of the selected source languages.")
+                : L10n.string("This service supports none of the selected target languages.")
+            menu.addItem(withTitle: message, action: nil, keyEquivalent: "").isEnabled = false
+            let settings = menu.addItem(withTitle: L10n.string("Configure languages"),
+                                        action: #selector(AppDelegate.openLanguageSettings(_:)), keyEquivalent: "")
+            settings.representedObject = side
+        }
+        if showsUnsupportedLanguages, let supportedIdentifiers {
+            let unavailable = languages.filter { !supportedIdentifiers.contains($0.id) }
+            if !unavailable.isEmpty {
+                if menu.numberOfItems > 0 { menu.addItem(.separator()) }
+                menu.addItem(.sectionHeader(title: L10n.string("Unsupported by the current service")))
+                for language in unavailable { menu.addItem(item(name: language.name, id: language.id)) }
+            }
         }
         return menu
     }
@@ -280,7 +299,6 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
         let item = NSMenuItem(title: name, action: #selector(choose(_:)), keyEquivalent: "")
         if !supports(id) {
             item.isEnabled = false
-            item.title = String(format: L10n.string("%@ (unsupported by this service)"), name)
             item.toolTip = L10n.string("Choose a translation service that supports this language.")
         }
         item.target = self

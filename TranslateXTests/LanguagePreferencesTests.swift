@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class LanguagePreferencesTests: XCTestCase {
+    func testShowingUnsupportedLanguagesDefaultsOnAndPersistsIndependentlyOfBothRanges() throws {
+        try withPreferences { preferences, defaults in
+            XCTAssertTrue(preferences.showsUnsupportedLanguages)
+            preferences.setEnabledLanguages(["is", "en"], for: .target)
+            preferences.recordLanguageChoice("is", for: .target)
+            preferences.showsUnsupportedLanguages = false
+            let reopened = AppPreferences(defaults: defaults)
+            XCTAssertFalse(reopened.showsUnsupportedLanguages)
+            XCTAssertNil(reopened.sourceLanguageIdentifiers)
+            XCTAssertEqual(reopened.targetLanguageIdentifiers, ["is", "en"])
+            XCTAssertEqual(reopened.recentTargetLanguages, ["is"])
+            reopened.showsUnsupportedLanguages = true
+            XCTAssertTrue(AppPreferences(defaults: defaults).showsUnsupportedLanguages)
+        }
+    }
+
     func testBulkCheckboxSelectsPartialScopeAndKeepsHiddenChoices() {
         let catalog = ["en", "fr", "de", "ja"]
         var draft = TranslationLanguageSelectionDraft(identifiers: ["en", "ja"])

@@ -91,8 +91,7 @@ final class LanguageMenuTests: XCTestCase {
                 let available = id == "auto" || supported.contains(id)
                 XCTAssertEqual(row.isEnabled, available, id, file: file, line: line)
                 if !available {
-                    XCTAssertEqual(row.title, String(format: L10n.string("%@ (unsupported by this service)"),
-                                                      LanguageCatalog.displayName(for: id)), file: file, line: line)
+                    XCTAssertEqual(row.title, LanguageCatalog.displayName(for: id), file: file, line: line)
                     XCTAssertNotNil(row.toolTip, file: file, line: line)
                 }
             }
@@ -183,6 +182,64 @@ final class LanguageMenuTests: XCTestCase {
         XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
     }
 
+    func testUnsupportedGroupStaysLastAndFilteringDoesNotChangeSelectionOrRecents() throws {
+        let control = makeControl()
+        control.languages.append(.init(id: "is", name: "Icelandic"))
+        control.languageSide = .target
+        control.usesLanguageGroups = true
+        control.selection = "is"
+        control.recentLanguageIdentifiers = ["is", "fr"]
+        control.supportedIdentifiers = ["en", "fr"]
+        control.refreshTitle()
+        let menu = try XCTUnwrap(control.menu)
+        let visible = menu.items.filter { !$0.isHidden }
+        XCTAssertEqual(visible.map(\.title), [control.languages[1].name, "", control.languages[0].name, "",
+                                              L10n.string("Unsupported by the current service"), "Icelandic"])
+        XCTAssertEqual(visible.map(\.isSeparatorItem), [false, true, false, true, false, false])
+        XCTAssertTrue(visible[4].isSectionHeader)
+        XCTAssertFalse(visible[5].isEnabled)
+        XCTAssertEqual(visible[5].state, .on)
+        XCTAssertNotNil(control.accessibilityHelp())
+        control.showsUnsupportedLanguages = false
+        control.refreshTitle()
+        let filtered = try XCTUnwrap(control.menu)
+        XCTAssertEqual(selectableItems(filtered).map(\.title), [control.languages[1].name, control.languages[0].name])
+        XCTAssertFalse(filtered.items.contains(where: \.isSectionHeader))
+        XCTAssertNotNil(control.toolTip)
+        XCTAssertEqual(control.selection, "is")
+        XCTAssertEqual(control.recentLanguageIdentifiers, ["is", "fr"])
+        control.supportedIdentifiers = ["en", "fr", "is"]
+        control.refreshTitle()
+        let restored = try XCTUnwrap(control.menu)
+        XCTAssertFalse(restored.items.contains(where: \.isSectionHeader))
+        XCTAssertEqual(selectableItems(restored).first?.representedObject as? String, "is")
+        XCTAssertTrue(try item("is", in: restored).isEnabled)
+        XCTAssertNil(control.toolTip)
+    }
+
+    func testEmptyServiceRangeOffersLanguageSettingsForBothSidesAndVisibilityModes() throws {
+        let control = makeControl()
+        control.supportedIdentifiers = []
+        control.usesLanguageGroups = true
+        for side in [TranslationSide.source, .target] {
+            control.languageSide = side
+            control.includeAuto = side == .source
+            for show in [true, false] {
+                control.showsUnsupportedLanguages = show
+                let menu = control.selectionMenu()
+                let choices = selectableItems(menu)
+                XCTAssertEqual(choices.count, (show ? 2 : 0) + (side == .source ? 1 : 0))
+                XCTAssertEqual(choices.filter(\.isEnabled).compactMap { $0.representedObject as? String }, side == .source ? ["auto"] : [])
+                XCTAssertEqual(menu.items.filter(\.isSectionHeader).count, show ? 1 : 0)
+                XCTAssertEqual(menu.items.filter(\.isSeparatorItem).count, show ? 1 : 0)
+                let settings = try XCTUnwrap(menu.item(withTitle: L10n.string("Configure languages")))
+                XCTAssertEqual(settings.representedObject as? TranslationSide, side)
+                XCTAssertTrue(settings.isEnabled)
+                XCTAssertEqual(settings.action, #selector(AppDelegate.openLanguageSettings(_:)))
+            }
+        }
+    }
+
     func testFirstUseHasOnlyAllLanguagesAndExcludedCurrentSelectionIsNotReinserted() {
         let control = makeControl()
         control.usesLanguageGroups = true
@@ -193,11 +250,13 @@ final class LanguageMenuTests: XCTestCase {
         XCTAssertFalse(menu.items.contains(where: \.isSeparatorItem))
         XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
         control.languages = []
+        control.languageSide = .target
         let empty = control.selectionMenu()
         XCTAssertTrue(selectableItems(empty).isEmpty)
         XCTAssertFalse(empty.items.contains(where: \.isSeparatorItem))
-        XCTAssertEqual(empty.items.last?.title, L10n.string("No enabled languages for this service"))
-        XCTAssertEqual(empty.items.last?.isEnabled, false)
+        XCTAssertEqual(empty.items.first?.title, L10n.string("This service supports none of the selected target languages."))
+        XCTAssertEqual(empty.items.first?.isEnabled, false)
+        XCTAssertEqual(empty.items.last?.title, L10n.string("Configure languages"))
     }
 
     func testAutomaticAndManualSelectionsHaveExactlyOneCheckmark() async throws {

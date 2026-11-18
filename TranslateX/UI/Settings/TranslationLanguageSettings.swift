@@ -5,7 +5,7 @@ struct TranslationLanguageSettings: View {
     @Bindable var preferences: AppPreferences
     let catalog: LanguageCatalog
     @Environment(\.translateXTheme) private var theme
-    @State private var editingSide: TranslationSide?
+    @Binding var editingSide: TranslationSide?
     private var p: TranslationServicePalette { .init(theme: theme) }
 
     var body: some View {
@@ -20,6 +20,15 @@ struct TranslationLanguageSettings: View {
                 row(.source)
                 Rectangle().fill(p.line).frame(height: 1).accessibilityHidden(true)
                 row(.target)
+                Rectangle().fill(p.line).frame(height: 1).accessibilityHidden(true)
+                HStack {
+                    Text("Show languages unsupported by the current service").font(.system(size: 13))
+                    Spacer()
+                    Toggle("Show languages unsupported by the current service", isOn: $preferences.showsUnsupportedLanguages)
+                        .toggleStyle(TranslateXSwitchStyle())
+                        .accessibilityLabel(Text("Show languages unsupported by the current service"))
+                        .accessibilityIdentifier("settings.languages.showUnsupported")
+                }.frame(minHeight: 52)
             }
             .padding(.horizontal, 17)
             .background(p.panel, in: RoundedRectangle(cornerRadius: 14))
@@ -32,6 +41,7 @@ struct TranslationLanguageSettings: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .serviceDesignMetric("settings.translationLanguages")
     }
 

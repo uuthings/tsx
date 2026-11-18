@@ -1196,9 +1196,14 @@
 "Recent languages" = "常用语言";
 "Other languages" = "其他语言";
 "All languages" = "所有语言";
-"%@ (unsupported by this service)" = "%@（当前服务不支持）";
+"Show languages unsupported by the current service" = "显示当前服务不支持的语言";
+"Unsupported by the current service" = "当前服务不支持";
+"This service supports none of the selected source languages." = "当前服务不支持已选的源语言。";
+"This service supports none of the selected target languages." = "当前服务不支持已选的目标语言。";
+"Configure languages" = "设置语言";
+"%@ · Choose again" = "%@ · 请重选";
+"This service does not support %@. Choose another language or service." = "当前服务不支持%@，请选择其他语言或切换服务。";
 "Choose a translation service that supports this language." = "可切换到支持此语言的翻译服务。";
-"No enabled languages for this service" = "当前服务没有已启用的语言";
 "Translation languages" = "翻译语言";
 "Choose the languages shown in the source and target menus." = "选择源语言和目标语言菜单中显示的语言。";
 "The 5 most recently selected languages appear first. Source and target histories are separate." = "最近选择的 5 种语言会显示在菜单顶部，源语言和目标语言分别记录。";

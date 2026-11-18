@@ -54,6 +54,12 @@ final class AppPreferences {
     private(set) var recentSourceLanguages: [String]
     private(set) var recentTargetLanguages: [String]
     static let recentLanguageLimit = 5
+    var showsUnsupportedLanguages: Bool {
+        didSet {
+            guard showsUnsupportedLanguages != oldValue else { return }
+            defaults.set(showsUnsupportedLanguages, forKey: StorageKey.showsUnsupportedLanguages)
+        }
+    }
     var interfaceLanguage: AppInterfaceLanguage {
         didSet {
             guard interfaceLanguage != oldValue else { return }
@@ -98,6 +104,7 @@ final class AppPreferences {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        showsUnsupportedLanguages = defaults.object(forKey: StorageKey.showsUnsupportedLanguages) as? Bool ?? true
         let sourceRange = Self.savedLanguageRange(defaults.object(forKey: StorageKey.sourceLanguages))
         let targetRange = Self.savedLanguageRange(defaults.object(forKey: StorageKey.targetLanguages))
         sourceLanguageIdentifiers = sourceRange
@@ -270,6 +277,7 @@ final class AppPreferences {
     }
 
     enum StorageKey {
+        static let showsUnsupportedLanguages = "preferences.showsUnsupportedLanguages"
         static let sourceLanguages = "preferences.sourceLanguages"
         static let targetLanguages = "preferences.targetLanguages"
         static let recentSourceLanguages = "preferences.recentSourceLanguages"

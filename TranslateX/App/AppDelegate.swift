@@ -151,6 +151,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.showSettings(shortcuts: shortcutSettings)
     }
 
+    @objc func openLanguageSettings(_ sender: NSMenuItem) {
+        guard !isTerminating, let side = sender.representedObject as? TranslationSide else { return }
+        openSettings()
+        windows.settingsNavigation.requestedLanguageSide = side
+    }
+
     @objc private func openAbout() {
         guard !isTerminating else { return }
         screenshots.cancel()

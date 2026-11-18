@@ -1196,9 +1196,14 @@
 "Recent languages" = "Recent languages";
 "Other languages" = "Other languages";
 "All languages" = "All languages";
-"%@ (unsupported by this service)" = "%@ (unsupported by this service)";
+"Show languages unsupported by the current service" = "Show languages unsupported by the current service";
+"Unsupported by the current service" = "Unsupported by the current service";
+"This service supports none of the selected source languages." = "This service supports none of the selected source languages.";
+"This service supports none of the selected target languages." = "This service supports none of the selected target languages.";
+"Configure languages" = "Configure languages";
+"%@ · Choose again" = "%@ · Choose again";
+"This service does not support %@. Choose another language or service." = "This service does not support %@. Choose another language or service.";
 "Choose a translation service that supports this language." = "Choose a translation service that supports this language.";
-"No enabled languages for this service" = "No enabled languages for this service";
 "Translation languages" = "Translation languages";
 "Choose the languages shown in the source and target menus." = "Choose the languages shown in the source and target menus.";
 "The 5 most recently selected languages appear first. Source and target histories are separate." = "The 5 most recently selected languages appear first. Source and target histories are separate.";

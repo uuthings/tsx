@@ -3,6 +3,7 @@ import SwiftUI
 /// Stable settings navigation shared by menu commands and the settings window.
 @MainActor @Observable
 final class SettingsNavigation {
+    var requestedLanguageSide: TranslationSide?
     var requestedTab: Int?
     func showAbout() { requestedTab = 5 }
 }
@@ -23,6 +24,7 @@ struct SettingsView: View {
     var navigation = SettingsNavigation()
     @State var serviceSession: TranslationServiceDraftSession? = nil
     @State var tab = 0
+    @State private var editingLanguageSide: TranslationSide?
     @State private var resetFailed = false
 
     private var p: TranslationServicePalette { .init(theme: theme) }
@@ -61,6 +63,11 @@ struct SettingsView: View {
             guard let request else { return }
             selectTab(request)
             navigation.requestedTab = nil
+        }
+        .onChange(of: navigation.requestedLanguageSide, initial: true) { _, side in
+            guard let side else { return }
+            navigation.requestedLanguageSide = nil
+            selectTab(0) { editingLanguageSide = side }
         }
         .onChange(of: tab) { old, new in
             shortcuts.endRecording()
@@ -130,10 +137,14 @@ struct SettingsView: View {
         .serviceDesignMetric("settings.tabs")
     }
 
-    private func selectTab(_ index: Int) {
+    private func selectTab(_ index: Int, then perform: @escaping @MainActor () -> Void = {}) {
         guard !showsUpdateModal || index == tab else { return }
-        if tab == 3, index != tab { serviceNavigation.requestExit { tab = index } }
-        else { tab = index }
+        let navigate = { @MainActor in
+            tab = index
+            perform()
+        }
+        if tab == 3, index != tab { serviceNavigation.requestExit(perform: navigate) }
+        else { navigate() }
     }
 
     private func tabButton(_ title: LocalizedStringKey, symbol: String, index: Int, compactTitle: LocalizedStringKey? = nil, iconSize: CGFloat = 16) -> some View {
@@ -167,7 +178,7 @@ struct SettingsView: View {
                       : "This language is unavailable for the selected service. Choose another target language."), systemImage: "exclamationmark.circle")
                     .font(.system(size: 11)).foregroundStyle(p.muted).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
             }
-            TranslationLanguageSettings(preferences: preferences, catalog: catalog)
+            TranslationLanguageSettings(preferences: preferences, catalog: catalog, editingSide: $editingLanguageSide)
                 .padding(.top, 16)
             groupCaption("Window and appearance").padding(.top, 16)
             group {
@@ -221,9 +232,10 @@ struct SettingsView: View {
     private var targetLanguageMenu: some View {
         LanguageMenu(label: L10n.string("Default target language"), selection: Binding(
             get: { preferences.defaultTarget }, set: { preferences.setDefaultTarget($0) }
-        ), languages: preferences.configuredLanguages(in: catalog.preferenceLanguages(for: .target), for: .target),
+        ), languages: catalog.preferenceLanguages(for: .target),
            supportedLanguages: catalog.languages(for: services?.selectedConfiguration), prominent: false,
-           minimumWidth: 144)
+           minimumWidth: 144, preferenceSide: .target, tracksRecentChoices: false)
+            .environment(\.translationLanguagePreferences, preferences)
             .fixedSize().translateXTooltip(L10n.string("Used for new selection and screenshot translations, and when the input workspace is empty."))
     }
 
