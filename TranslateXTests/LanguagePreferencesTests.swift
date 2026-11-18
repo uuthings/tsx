@@ -107,13 +107,13 @@ final class LanguagePreferencesTests: XCTestCase {
         }
     }
 
-    func testFilteringNeverAddsLanguagesUnsupportedByTheProvider() throws {
+    func testConfiguredLanguagesIncludeSavedEntriesMissingFromTheCatalog() throws {
         try withPreferences { preferences, _ in
             preferences.setEnabledLanguages(["en", "ja"], for: .source)
             let catalog = [TranslationLanguage(id: "fr", name: "French"), .init(id: "en", name: "English")]
-            XCTAssertEqual(preferences.filterLanguages(catalog, for: .source).map(\.id), ["en"])
-            XCTAssertEqual(preferences.filterLanguages(catalog, for: .target), catalog)
-            XCTAssertTrue(preferences.filterLanguages([.init(id: "de", name: "German")], for: .source).isEmpty)
+            XCTAssertEqual(preferences.configuredLanguages(in: catalog, for: .source).map(\.id), ["en", "ja"])
+            XCTAssertEqual(preferences.configuredLanguages(in: catalog, for: .target), catalog)
+            XCTAssertEqual(preferences.languageOptions(in: catalog, for: .source).map(\.id), ["fr", "en", "ja"])
         }
     }
 

@@ -21,9 +21,15 @@ final class LanguageCatalog {
         supportedIdentifiers = await Self.supportedLanguageIdentifiers()
     }
 
-    /// Settings describe the app-wide range. Menus still intersect it with the
-    /// active provider's capabilities, without claiming extra service support.
+    // Editing text can update both menus. Reuse the localized app-wide lists
+    // until Apple's catalog or the interface language changes.
+    @ObservationIgnored private var preferenceLists: [TranslationSide: (locale: Locale, apple: [String], list: [TranslationLanguage])] = [:]
+
     func preferenceLanguages(for side: TranslationSide) -> [TranslationLanguage] {
+        let locale = L10n.currentLocale
+        if let cached = preferenceLists[side], cached.locale == locale, cached.apple == supportedIdentifiers {
+            return cached.list
+        }
         let asTarget = side == .target
         let identifiers = supportedIdentifiers + Self.modelLanguageIdentifiers
             + DedicatedTranslationLanguages.identifiers(for: .deepL, asTarget: asTarget)
@@ -31,7 +37,9 @@ final class LanguageCatalog {
             + GoogleTranslationLanguages.identifiers(asTarget: asTarget)
             + QwenMTTranslationLanguages.identifiers(asTarget: asTarget)
             + TencentTranslationLanguages.identifiers(asTarget: asTarget)
-        return Self.normalizedLanguages(identifiers.map { Locale.Language(identifier: $0) })
+        let list = Self.normalizedLanguages(Set(identifiers).map { Locale.Language(identifier: $0) }, locale: locale)
+        preferenceLists[side] = (locale, supportedIdentifiers, list)
+        return list
     }
 
     /// Common language choices for text models, not a promise of model quality

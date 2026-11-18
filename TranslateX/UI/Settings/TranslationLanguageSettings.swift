@@ -68,9 +68,7 @@ struct TranslationLanguageSelection: View {
         _draft = State(initialValue: TranslationLanguageSelectionDraft(identifiers: preferences.enabledLanguageIdentifiers(for: side)))
     }
     private var languages: [TranslationLanguage] {
-        let catalog = catalog.preferenceLanguages(for: side)
-        let missing = (preferences.enabledLanguageIdentifiers(for: side) ?? []).filter { id in !catalog.contains { $0.id == id } }
-        return catalog + missing.map { .init(id: $0, name: LanguageCatalog.displayName(for: $0)) }
+        preferences.languageOptions(in: catalog.preferenceLanguages(for: side), for: side)
     }
     var body: some View {
         let languages = languages

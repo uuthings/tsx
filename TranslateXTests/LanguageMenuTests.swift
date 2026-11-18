@@ -25,10 +25,6 @@ final class LanguageMenuTests: XCTestCase {
         panel.contentView = host
         defer { panel.close() }
         panel.orderFront(nil)
-        func menus(_ view: NSView) -> [LanguageMenuControl] {
-            if let menu = view as? LanguageMenuControl { return [menu] }
-            return view.subviews.flatMap(menus)
-        }
         for _ in 0..<30 {
             host.layoutSubtreeIfNeeded()
             if menus(host).count == 2 { break }
@@ -52,6 +48,97 @@ final class LanguageMenuTests: XCTestCase {
         XCTAssertEqual(target.languages, languages)
         XCTAssertEqual(target.recentLanguageIdentifiers, ["de"])
         XCTAssertTrue(preferences.recentSourceLanguages.isEmpty)
+    }
+
+    func testMainWindowKeepsConfiguredLanguagesAcrossSelectionsAndServiceChanges() async throws {
+        let windows = try isolatedWindows()
+        defer { windows.shutdown() }
+        let preferences = windows.preferences
+        let model = windows.inputModel
+        let catalog = windows.languages
+        await catalog.load()
+        let host = NSHostingView(rootView: TranslateXThemeHost(preferences: preferences) {
+            TranslationWorkspace(model: model, catalog: catalog)
+        })
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 720, height: 400),
+                            styleMask: [.titled], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = host
+        defer { panel.close() }
+        panel.orderBack(nil)
+        func settle(until ready: () -> Bool) async throws {
+            for _ in 0..<100 {
+                host.layoutSubtreeIfNeeded()
+                if ready() { return }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            XCTFail("Main window menus did not refresh")
+        }
+        try await settle { self.menus(host).count == 2 }
+        let source = try XCTUnwrap(menus(host).first { $0.includeAuto })
+        let target = try XCTUnwrap(menus(host).first { !$0.includeAuto })
+        let six = ["is", "fa", "ru", "zh-Hans", "he", "hu"]
+
+        func assertRows(_ control: LanguageMenuControl, ids: [String], supported: Set<String>,
+                        file: StaticString = #filePath, line: UInt = #line) throws {
+            let menu = try XCTUnwrap(control.menu, file: file, line: line)
+            menu.update()
+            let rows = selectableItems(menu)
+            let expected = control.includeAuto ? ["auto"] + ids : ids
+            XCTAssertEqual(rows.compactMap { $0.representedObject as? String }.sorted(), expected.sorted(), file: file, line: line)
+            for row in rows {
+                let id = try XCTUnwrap(row.representedObject as? String)
+                let available = id == "auto" || supported.contains(id)
+                XCTAssertEqual(row.isEnabled, available, id, file: file, line: line)
+                if !available {
+                    XCTAssertEqual(row.title, String(format: L10n.string("%@ (unsupported by this service)"),
+                                                      LanguageCatalog.displayName(for: id)), file: file, line: line)
+                    XCTAssertNotNil(row.toolTip, file: file, line: line)
+                }
+            }
+        }
+
+        let apple = Set(catalog.languages.map(\.id))
+        for (side, control) in [(TranslationSide.source, source), (.target, target)] {
+            XCTAssertNil(preferences.enabledLanguageIdentifiers(for: side))
+            try assertRows(control, ids: catalog.preferenceLanguages(for: side).map(\.id), supported: apple)
+            XCTAssertTrue(preferences.setEnabledLanguages(six, for: side))
+        }
+        model.target = "is"
+        try await settle { source.languages.count == 6 && target.languages.count == 6 && target.selection == "is" }
+        for control in [source, target] { try assertRows(control, ids: six, supported: apple) }
+        if apple.contains("ru") {
+            try invoke(item("ru", in: XCTUnwrap(target.menu)))
+            try await settle { target.selection == "ru" }
+            try assertRows(target, ids: six, supported: apple)
+        }
+
+        let limited = TranslationServiceConfiguration(kind: .deepL)
+        let broader = TranslationServiceConfiguration(kind: .deepSeek)
+        try windows.services.save(limited, apiKey: "fixture-key")
+        try windows.services.save(broader, apiKey: "fixture-key")
+        model.selectService(limited.id)
+        let supported = Set(catalog.languages(for: limited).map(\.id))
+        try await settle { target.supportedIdentifiers == supported }
+        for control in [source, target] {
+            try assertRows(control, ids: six, supported: supported)
+            let disabled = try item("is", in: XCTUnwrap(control.menu))
+            XCTAssertFalse(disabled.isEnabled)
+            try invoke(disabled)
+            try invoke(item(control === source ? "he" : "hu", in: XCTUnwrap(control.menu)))
+        }
+        try await settle { source.selection == "he" && target.selection == "hu" }
+        for control in [source, target] { try assertRows(control, ids: six, supported: supported) }
+        XCTAssertEqual(preferences.recentSourceLanguages, ["he"])
+        XCTAssertEqual(preferences.recentTargetLanguages, apple.contains("ru") ? ["hu", "ru"] : ["hu"])
+
+        model.selectService(broader.id)
+        try await settle { target.supportedIdentifiers?.contains("is") == true && source.supportedIdentifiers?.contains("is") == true }
+        for control in [source, target] { try assertRows(control, ids: six, supported: Set(six)) }
+        try invoke(item("is", in: XCTUnwrap(target.menu)))
+        XCTAssertEqual(model.target, "is")
+        XCTAssertEqual(preferences.recentTargetLanguages.first, "is")
+        XCTAssertEqual(preferences.recentSourceLanguages, ["he"])
     }
 
     func testRecentGroupPreservesRecencyWithoutDuplicatesAndSeparatesOnlyNonemptyGroups() {
@@ -260,6 +347,11 @@ final class LanguageMenuTests: XCTestCase {
         XCTAssertEqual(bounds.minY, anchor.maxY + 4)
         XCTAssertEqual(bounds.maxY, screen.maxY)
         XCTAssertFalse(bounds.intersects(anchor))
+    }
+
+    private func menus(_ view: NSView) -> [LanguageMenuControl] {
+        if let menu = view as? LanguageMenuControl { return [menu] }
+        return view.subviews.flatMap(menus)
     }
 
     private func makeControl() -> LanguageMenuControl {

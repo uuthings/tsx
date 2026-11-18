@@ -221,8 +221,8 @@ struct SettingsView: View {
     private var targetLanguageMenu: some View {
         LanguageMenu(label: L10n.string("Default target language"), selection: Binding(
             get: { preferences.defaultTarget }, set: { preferences.setDefaultTarget($0) }
-        ), languages: preferences.filterLanguages(catalog.languages(for: services?.selectedConfiguration), for: .target), prominent: false,
-           enabled: !preferences.filterLanguages(catalog.languages(for: services?.selectedConfiguration), for: .target).isEmpty,
+        ), languages: preferences.configuredLanguages(in: catalog.preferenceLanguages(for: .target), for: .target),
+           supportedLanguages: catalog.languages(for: services?.selectedConfiguration), prominent: false,
            minimumWidth: 144)
             .fixedSize().translateXTooltip(L10n.string("Used for new selection and screenshot translations, and when the input workspace is empty."))
     }

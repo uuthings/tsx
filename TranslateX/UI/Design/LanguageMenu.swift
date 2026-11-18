@@ -18,6 +18,7 @@ struct LanguageMenu: NSViewRepresentable {
     let label: String
     @Binding var selection: String
     let languages: [TranslationLanguage]
+    var supportedLanguages: [TranslationLanguage]? = nil
     var includeAuto = false
     var prominent = true
     var enabled = true
@@ -42,10 +43,11 @@ struct LanguageMenu: NSViewRepresentable {
     }
 
     func updateNSView(_ control: LanguageMenuControl, context: Context) {
-        control.languages = preferenceSide.flatMap { side in preferences.map { $0.filterLanguages(languages, for: side) } } ?? languages
+        control.languages = preferenceSide.flatMap { side in preferences.map { $0.configuredLanguages(in: languages, for: side) } } ?? languages
+        control.supportedIdentifiers = supportedLanguages.map { Set($0.map(\.id)) }
         control.usesLanguageGroups = preferenceSide != nil
         control.recentLanguageIdentifiers = preferenceSide.flatMap { preferences?.recentLanguages(for: $0) } ?? []
-        control.preservesUnavailableSelection = preferenceSide.flatMap { preferences?.isLanguageEnabled(selection, for: $0) } ?? true
+        control.preservesUnavailableSelection = preferenceSide == nil && supportedLanguages == nil
         control.includeAuto = includeAuto
         control.selection = selection
         control.displayTitle = displayTitle
@@ -75,6 +77,7 @@ struct LanguageMenu: NSViewRepresentable {
 @MainActor
 final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
     var languages: [TranslationLanguage] = []
+    var supportedIdentifiers: Set<String>?
     var includeAuto = false
     var usesLanguageGroups = false
     var recentLanguageIdentifiers: [String] = []
@@ -221,6 +224,7 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
 
     func selectionMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.autoenablesItems = supportedIdentifiers == nil
         menu.font = .systemFont(ofSize: 13)
         menu.delegate = self
         if includeAuto {
@@ -274,14 +278,23 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
 
     private func item(name: String, id: String) -> NSMenuItem {
         let item = NSMenuItem(title: name, action: #selector(choose(_:)), keyEquivalent: "")
+        if !supports(id) {
+            item.isEnabled = false
+            item.title = String(format: L10n.string("%@ (unsupported by this service)"), name)
+            item.toolTip = L10n.string("Choose a translation service that supports this language.")
+        }
         item.target = self
         item.representedObject = id
         item.state = id == selection ? .on : .off
         return item
     }
 
+    private func supports(_ identifier: String) -> Bool {
+        identifier == "auto" || supportedIdentifiers?.contains(identifier) != false
+    }
+
     @objc private func choose(_ item: NSMenuItem) {
-        guard isEnabled, let id = item.representedObject as? String else { return }
+        guard isEnabled, item.isEnabled, let id = item.representedObject as? String, supports(id) else { return }
         onSelect?(id)
     }
 }

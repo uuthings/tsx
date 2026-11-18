@@ -168,11 +168,22 @@ final class AppPreferences {
         return enabledLanguageIdentifiers(for: side)?.contains(LanguageCatalog.canonicalIdentifier(identifier)) ?? true
     }
 
-    func filterLanguages(_ languages: [TranslationLanguage], for side: TranslationSide) -> [TranslationLanguage] {
-        languages.filter { isLanguageEnabled($0.id, for: side) }
+    /// Include saved identifiers even if a later catalog no longer lists them.
+    func languageOptions(in catalog: [TranslationLanguage], for side: TranslationSide) -> [TranslationLanguage] {
+        guard let saved = enabledLanguageIdentifiers(for: side) else { return catalog }
+        let known = Set(catalog.map(\.id))
+        return catalog + saved.filter { !known.contains($0) }.map {
+            TranslationLanguage(id: $0, name: LanguageCatalog.displayName(for: $0))
+        }
     }
 
-    /// Nil follows the full service catalogue, including languages added later.
+    func configuredLanguages(in catalog: [TranslationLanguage], for side: TranslationSide) -> [TranslationLanguage] {
+        guard let saved = enabledLanguageIdentifiers(for: side) else { return catalog }
+        let enabled = Set(saved)
+        return languageOptions(in: catalog, for: side).filter { enabled.contains($0.id) }
+    }
+
+    /// Nil follows the full app catalogue, including languages added later.
     /// A custom range always contains at least two distinct concrete languages.
     @discardableResult func setEnabledLanguages(_ identifiers: [String]?, for side: TranslationSide) -> Bool {
         let normalized = identifiers.map(Self.normalizedLanguages)

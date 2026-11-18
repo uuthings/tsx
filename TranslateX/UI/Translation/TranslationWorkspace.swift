@@ -112,7 +112,8 @@ struct TranslationWorkspace: View {
         if let catalog {
             LanguageMenu(label: L10n.string(side == .source ? "Source language" : "Target language"),
                 selection: side == .source ? $model.source : $model.target,
-                languages: catalog.languages(for: model.serviceConfiguration, asTarget: side == model.destinationSide),
+                languages: catalog.preferenceLanguages(for: side),
+                supportedLanguages: catalog.languages(for: model.serviceConfiguration, asTarget: side == model.destinationSide),
                 includeAuto: side == .source && model.inputSide == .source,
                 prominent: !compact, enabled: !model.isComposing,
                 maximumWidth: speechSession == nil ? .greatestFiniteMagnitude : 140,

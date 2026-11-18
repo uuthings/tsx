@@ -164,7 +164,8 @@ struct ScreenshotOverlayView: View {
     private func language(_ side: TranslationSide) -> some View {
         LanguageMenu(label: L10n.string(side == .source ? "Source language" : "Target language"),
             selection: side == .source ? $model.source : $model.target,
-            languages: catalog.languages(for: model.serviceConfiguration, asTarget: side == .target),
+            languages: catalog.preferenceLanguages(for: side),
+            supportedLanguages: catalog.languages(for: model.serviceConfiguration, asTarget: side == .target),
             includeAuto: side == .source, prominent: false,
             enabled: !model.isComposing && model.phase != .recognizing,
             displayTitle: side == .source && model.source == "auto" ? model.resolvedSource.map {
