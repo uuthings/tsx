@@ -498,6 +498,19 @@ final class TranslationServiceRoutingTests: XCTestCase {
         XCTAssertTrue(catalog.languages(for: try store().selectedConfiguration).contains { $0.id == "hi" })
     }
 
+    func testPromptBasedServicesAllowCatalogLanguagesIncludingRegionalGermanAndFrench() {
+        let catalog = LanguageCatalog()
+        for side in [TranslationSide.source, .target] {
+            let configured = catalog.preferenceLanguages(for: side)
+            let ids = Set(configured.map(\.id))
+            XCTAssertTrue(Set(["de", "de-CH", "fr", "fr-CA"]).isSubset(of: ids))
+            for kind in [TranslationServiceKind.openAI, .deepSeek, .openAICompatible, .ollama, .claude, .codex] {
+                let choices = catalog.languages(for: .init(kind: kind), asTarget: side == .target)
+                XCTAssertEqual(choices, configured, kind.rawValue)
+            }
+        }
+    }
+
     func testRegionalAndScriptConversionsAreNotSuppressedAsSameLanguage() async throws {
         let services = try store()
         let recorder = RoutingRecorder()
@@ -556,7 +569,6 @@ final class TranslationServiceRoutingTests: XCTestCase {
                 XCTAssertTrue(choices.contains { $0.id == "zh-Hant" })
             }
         }
-        XCTAssertEqual(catalog.languages(for: .init(kind: .claude)).count, 54)
     }
 
     func testTencentLanguagePickerPreservesScriptsWithoutInventingRegionalSupport() {

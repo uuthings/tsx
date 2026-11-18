@@ -26,6 +26,22 @@ final class RemoteTranslationProviderTests: XCTestCase {
         XCTAssertTrue((body["instructions"] as? String)?.contains("untrusted text") == true)
     }
 
+    func testOpenAIAndDeepSeekKeepRegionalLanguageTagsInBothDirections() throws {
+        for kind in [TranslationServiceKind.openAI, .deepSeek] {
+            for (source, target) in [("de-CH", "fr-CA"), ("fr-CA", "de-CH")] {
+                let translation = TranslationRequest(id: UUID(), text: "Fixture", source: source, target: target)
+                let request = try RemoteTranslationProvider.makeRequest(
+                    configuration: .init(kind: kind), apiKey: "fixture", request: translation
+                )
+                let body = try object(XCTUnwrap(request.httpBody))
+                let messages = body["messages"] as? [[String: String]]
+                let instruction = try XCTUnwrap(body["instructions"] as? String ?? messages?.first?["content"])
+                XCTAssertTrue(instruction.contains("into language code " + target + "."))
+                XCTAssertTrue(instruction.contains("source language code is " + source + "."))
+            }
+        }
+    }
+
     func testDeepSeekDisablesThinkingAndKeepsTextSeparateFromInstructions() throws {
         var config = TranslationServiceConfiguration(kind: .deepSeek)
         config.additionalInstructions = "Use British spelling."

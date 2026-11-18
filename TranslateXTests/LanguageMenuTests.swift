@@ -139,6 +139,23 @@ final class LanguageMenuTests: XCTestCase {
         XCTAssertEqual(model.target, "is")
         XCTAssertEqual(preferences.recentTargetLanguages.first, "is")
         XCTAssertEqual(preferences.recentSourceLanguages, ["he"])
+
+        let regional = ["de", "de-CH", "fr", "fr-CA"]
+        for side in [TranslationSide.source, .target] {
+            XCTAssertTrue(preferences.setEnabledLanguages(regional, for: side))
+        }
+        let openAI = TranslationServiceConfiguration(kind: .openAI)
+        try windows.services.save(openAI, apiKey: "fixture-key")
+        for service in [openAI, broader] {
+            model.selectService(service.id)
+            XCTAssertEqual(model.serviceConfiguration?.id, service.id)
+            try await settle { source.languages.count == 4 && target.languages.count == 4 }
+            for control in [source, target] { try assertRows(control, ids: regional, supported: Set(regional)) }
+            try invoke(item("de-CH", in: XCTUnwrap(source.menu)))
+            try invoke(item("fr-CA", in: XCTUnwrap(target.menu)))
+            XCTAssertEqual(model.source, "de-CH")
+            XCTAssertEqual(model.target, "fr-CA")
+        }
     }
 
     func testRecentGroupPreservesRecencyWithoutDuplicatesAndSeparatesOnlyNonemptyGroups() {

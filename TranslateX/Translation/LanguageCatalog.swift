@@ -31,7 +31,7 @@ final class LanguageCatalog {
             return cached.list
         }
         let asTarget = side == .target
-        let identifiers = supportedIdentifiers + Self.modelLanguageIdentifiers
+        let identifiers = supportedIdentifiers + Self.commonLanguageIdentifiers
             + DedicatedTranslationLanguages.identifiers(for: .deepL, asTarget: asTarget)
             + DedicatedTranslationLanguages.identifiers(for: .azureTranslator, asTarget: asTarget)
             + GoogleTranslationLanguages.identifiers(asTarget: asTarget)
@@ -42,8 +42,8 @@ final class LanguageCatalog {
         return list
     }
 
-    /// Common language choices for text models, not a promise of model quality
-    /// or a substitute for each dedicated translation API's language catalogue.
+    /// Translation APIs accept mapped codes. General-purpose models receive
+    /// the chosen language tag in the translation instructions.
     func languages(for service: TranslationServiceConfiguration?, asTarget: Bool = true) -> [TranslationLanguage] {
         guard let service else { return languages }
         let identifiers: [String]
@@ -57,12 +57,12 @@ final class LanguageCatalog {
         case .tencentTranslation:
             identifiers = TencentTranslationLanguages.identifiers(asTarget: asTarget)
         case .openAI, .deepSeek, .openAICompatible, .ollama, .claude, .codex:
-            identifiers = Self.modelLanguageIdentifiers
+            return preferenceLanguages(for: asTarget ? .target : .source)
         }
         return Self.normalizedLanguages(identifiers.map { Locale.Language(identifier: $0) })
     }
 
-    private static let modelLanguageIdentifiers = [
+    private static let commonLanguageIdentifiers = [
         "zh-Hans", "zh-Hant", "en", "ja", "ko", "fr", "de", "es", "pt", "pt-PT", "it", "ru",
         "ar", "hi", "th", "vi", "id", "ms", "nl", "pl", "tr", "uk", "sv", "da", "fi", "nb",
         "cs", "el", "he", "ro", "hu", "bg", "sk", "sl", "hr", "sr", "et", "lv", "lt", "fa",
