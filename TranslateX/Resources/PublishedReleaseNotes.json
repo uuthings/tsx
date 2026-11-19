@@ -1,8 +1,14 @@
 [
   {
+    "version": "1.3.11",
+    "notes": "## 中文\n\n- 源语言和目标语言菜单会保留你在设置中勾选的语种。切换翻译服务后，暂不可用的语种置灰排在分隔线下方。关闭「显示当前服务不支持的语言」即可隐藏它们，切回支持的服务后可再次选择。\n- 当前语言在菜单右侧显示勾选标记。如果所选语种全部不可用，可从菜单直接打开对应的语言设置。\n- 修复 OpenAI、DeepSeek 等文本模型将部分语言及其地区变体误标为不支持的问题。\n\n## English\n\n- The source and target menus keep the languages you selected in Settings. When you switch services, unavailable languages appear dimmed below a divider. Turn off “Show languages unsupported by the current service” to hide them. Switch to a service that supports them to select them again.\n- A checkmark on the right identifies the current language. If none of your chosen languages are available, you can open the relevant language settings directly from the menu.\n- Fixed some languages and regional variants being marked as unsupported for text models such as OpenAI and DeepSeek.\n",
+    "url": "https://github.com/uuthings/tsx/releases/tag/v1.3.11"
+  },
+  {
     "version": "1.3.10",
     "notes": "## 中文\n\n- **常用语言** 源语言和目标语言菜单分别记住最近选择的 5 种语言，置顶显示。自动检测始终位于源语言菜单首位。\n- **自定义语言列表** 在「设置 → 常规」分别选择两侧菜单显示的语言，每侧至少保留两种。搜索后可一次勾选或取消所有匹配项。\n- **用量统计** 在后台汇总统计数据，再次打开页面时复用已有结果，减少切换时的停顿。\n\n## English\n\n- **Recent languages** The source and target menus each keep your five most recent choices at the top. Automatic detection stays first in the source menu.\n- **Custom language lists** In Settings → General, choose which languages appear in each menu. Keep at least two per side. Search to select or deselect all matching languages at once.\n- **Usage statistics** Summaries are calculated in the background and reused when you reopen the page, reducing pauses when switching to it.\n",
-    "url": "https://github.com/uuthings/tsx/releases/tag/v1.3.10"
+    "url": "https://github.com/uuthings/tsx/releases/tag/v1.3.10",
+    "publishedAt": "2026-11-17T20:16:14Z"
   },
   {
     "version": "1.3.9",
