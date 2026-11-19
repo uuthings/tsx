@@ -1197,7 +1197,6 @@
 "Other languages" = "其他语言";
 "All languages" = "所有语言";
 "Show languages unsupported by the current service" = "显示当前服务不支持的语言";
-"Unsupported by the current service" = "当前服务不支持";
 "This service supports none of the selected source languages." = "当前服务不支持已选的源语言。";
 "This service supports none of the selected target languages." = "当前服务不支持已选的目标语言。";
 "Configure languages" = "设置语言";

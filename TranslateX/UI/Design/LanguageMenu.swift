@@ -270,11 +270,33 @@ final class LanguageMenuControl: NSPopUpButton, NSMenuDelegate {
             let unavailable = languages.filter { !supportedIdentifiers.contains($0.id) }
             if !unavailable.isEmpty {
                 if menu.numberOfItems > 0 { menu.addItem(.separator()) }
-                menu.addItem(.sectionHeader(title: L10n.string("Unsupported by the current service")))
                 for language in unavailable { menu.addItem(item(name: language.name, id: language.id)) }
             }
         }
+        if usesLanguageGroups { alignSelectionMark(in: menu) }
         return menu
+    }
+
+    private func alignSelectionMark(in menu: NSMenu) {
+        menu.showsStateColumn = false
+        guard let selected = menu.items.first(where: { $0.state == .on }),
+              let checkmark = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil) else { return }
+        let font = menu.font ?? .menuFont(ofSize: 13)
+        let labelWidth = menu.items.map { ($0.title as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.tabStops = [NSTextTab(textAlignment: .right, location: ceil(labelWidth) + 25)]
+        let title = NSMutableAttributedString(string: selected.title + "\t", attributes: [.font: font])
+        let mark = NSTextAttachment()
+        mark.image = checkmark.withSymbolConfiguration(.init(pointSize: 11, weight: .medium))
+        mark.bounds = NSRect(x: 0, y: -1, width: 12, height: 12)
+        title.append(NSAttributedString(attachment: mark))
+        title.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: title.length))
+
+        // AppKit can still draw the leading state image when tracking a pull-down.
+        // Keep the native on-state and expose the language name without the attachment.
+        selected.setAccessibilityLabel(selected.title)
+        selected.onStateImage = NSImage(size: mark.bounds.size, flipped: false) { _ in true }
+        selected.attributedTitle = title
     }
 
     func confinementRect(for menu: NSMenu, on screen: NSScreen?) -> NSRect {

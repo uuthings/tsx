@@ -91,7 +91,7 @@ final class LanguageMenuTests: XCTestCase {
                 let available = id == "auto" || supported.contains(id)
                 XCTAssertEqual(row.isEnabled, available, id, file: file, line: line)
                 if !available {
-                    XCTAssertEqual(row.title, LanguageCatalog.displayName(for: id), file: file, line: line)
+                    XCTAssertEqual(row.accessibilityLabel() ?? row.title, LanguageCatalog.displayName(for: id), file: file, line: line)
                     XCTAssertNotNil(row.toolTip, file: file, line: line)
                 }
             }
@@ -168,7 +168,31 @@ final class LanguageMenuTests: XCTestCase {
         XCTAssertEqual(menu.items.firstIndex(where: \.isSeparatorItem), 2, "Auto and recent choices are contiguous")
         XCTAssertEqual(menu.items.filter(\.isSeparatorItem).count, 1)
         XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
-        XCTAssertEqual(selectableItems(menu).filter { $0.state == .on }.map(\.title), ["Français — catalog label"])
+        XCTAssertEqual(selectableItems(menu).filter { $0.state == .on }.compactMap { $0.accessibilityLabel() }, ["Français — catalog label"])
+    }
+
+    func testLanguageSelectionHasOneTrailingMarkOnTheNativeItem() throws {
+        let control = makeControl()
+        control.usesLanguageGroups = true
+        control.includeAuto = true
+        for selection in ["auto", "fr"] {
+            control.selection = selection
+            let menu = control.selectionMenu()
+            let selected = try item(selection, in: menu)
+            XCTAssertFalse(menu.showsStateColumn)
+            XCTAssertEqual(selected.state, .on)
+            XCTAssertNil(selected.view)
+            let name = selection == "auto" ? L10n.string("Detect language") : control.languages[1].name
+            XCTAssertEqual(selected.accessibilityLabel(), name)
+            let title = try XCTUnwrap(selected.attributedTitle)
+            XCTAssertEqual(title.string, name + "\t\u{FFFC}")
+            let style = try XCTUnwrap(title.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+            XCTAssertEqual(style.tabStops.last?.alignment, .right)
+            XCTAssertNotNil(title.attribute(.attachment, at: title.length - 1, effectiveRange: nil))
+            XCTAssertTrue(selectableItems(menu).filter { $0 !== selected }.allSatisfy { $0.attributedTitle == nil })
+        }
+        control.usesLanguageGroups = false
+        XCTAssertTrue(control.selectionMenu().showsStateColumn)
     }
 
     func testRecentOnlyMenuHasNoSeparatorEvenWithAutomaticDetection() {
@@ -193,12 +217,11 @@ final class LanguageMenuTests: XCTestCase {
         control.refreshTitle()
         let menu = try XCTUnwrap(control.menu)
         let visible = menu.items.filter { !$0.isHidden }
-        XCTAssertEqual(visible.map(\.title), [control.languages[1].name, "", control.languages[0].name, "",
-                                              L10n.string("Unsupported by the current service"), "Icelandic"])
-        XCTAssertEqual(visible.map(\.isSeparatorItem), [false, true, false, true, false, false])
-        XCTAssertTrue(visible[4].isSectionHeader)
-        XCTAssertFalse(visible[5].isEnabled)
-        XCTAssertEqual(visible[5].state, .on)
+        XCTAssertEqual(visible.map { $0.accessibilityLabel() ?? $0.title }, [control.languages[1].name, "", control.languages[0].name, "", "Icelandic"])
+        XCTAssertEqual(visible.map(\.isSeparatorItem), [false, true, false, true, false])
+        XCTAssertFalse(visible.contains(where: \.isSectionHeader))
+        XCTAssertFalse(visible[4].isEnabled)
+        XCTAssertEqual(visible[4].state, .on)
         XCTAssertNotNil(control.accessibilityHelp())
         control.showsUnsupportedLanguages = false
         control.refreshTitle()
@@ -230,7 +253,7 @@ final class LanguageMenuTests: XCTestCase {
                 let choices = selectableItems(menu)
                 XCTAssertEqual(choices.count, (show ? 2 : 0) + (side == .source ? 1 : 0))
                 XCTAssertEqual(choices.filter(\.isEnabled).compactMap { $0.representedObject as? String }, side == .source ? ["auto"] : [])
-                XCTAssertEqual(menu.items.filter(\.isSectionHeader).count, show ? 1 : 0)
+                XCTAssertFalse(menu.items.contains(where: \.isSectionHeader))
                 XCTAssertEqual(menu.items.filter(\.isSeparatorItem).count, show ? 1 : 0)
                 let settings = try XCTUnwrap(menu.item(withTitle: L10n.string("Configure languages")))
                 XCTAssertEqual(settings.representedObject as? TranslationSide, side)
