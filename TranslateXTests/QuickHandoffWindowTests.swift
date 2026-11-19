@@ -505,6 +505,7 @@ final class QuickHandoffWindowTests: XCTestCase {
         let suite = "TranslateXTests.MainUpdate.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        defaults.set("notify", forKey: "UpdatePolicyMode")
         let releases = ["1.1.0", "2.0.0"].map {
             AppRelease(version: $0, publishedAt: .distantPast, notes: "Constructed release notes.",
                        url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v\($0)")!)

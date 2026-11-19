@@ -38,7 +38,7 @@ Download **TSX-1.3.9-macOS-universal.dmg** from the [v1.3.9 release](https://git
 
 GitHub's automatic **Source code (zip / tar.gz)** archives contain the project source at that version. They are **not installable TSX applications**; download the installer attached to the release.
 
-Choose Check for Updates in the app menu or Settings → About. The app checks at launch without downloading or installing by default. Enabling Automatic updates allows downloading, installation, and restart. Copy any source text and translations you want to keep before quitting to update. You can also choose **Watch → Custom → Releases** on GitHub.
+Choose Check for Updates in the app menu or Settings → About. Choose Manual Only to check on demand. By default the app checks every 24 hours and marks available updates. In automatic installation mode it downloads the update and installs it when you quit. Choose Restart Now to apply it immediately. Copy any source text and translations you want to keep before quitting to update. You can also choose **Watch → Custom → Releases** on GitHub.
 
 [Product website](https://lumaxspace.com/products/tsx/) · [Release workflow](Docs/RELEASING.md)
 

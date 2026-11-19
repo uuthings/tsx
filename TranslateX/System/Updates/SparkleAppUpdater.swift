@@ -21,24 +21,16 @@ final class SparkleAppUpdater: NSObject, AppUpdaterBackend {
         updater.publisher(for: \.canCheckForUpdates).receive(on: RunLoop.main).sink { [weak owner] _ in
             MainActor.assumeIsolated { owner?.refreshUpdaterState() }
         }.store(in: &subscriptions)
-        updater.publisher(for: \.automaticallyChecksForUpdates).receive(on: RunLoop.main).sink { [weak owner] _ in
-            MainActor.assumeIsolated { owner?.refreshUpdaterState() }
-        }.store(in: &subscriptions)
-        updater.publisher(for: \.automaticallyDownloadsUpdates).receive(on: RunLoop.main).sink { [weak owner] _ in
-            MainActor.assumeIsolated { owner?.refreshUpdaterState() }
-        }.store(in: &subscriptions)
+
     }
 
     var canCheckForUpdates: Bool { updater.canCheckForUpdates }
-    var automaticallyChecksForUpdates: Bool {
-        get { updater.automaticallyChecksForUpdates }
-        set { updater.automaticallyChecksForUpdates = newValue }
+    func start() throws {
+        updater.sendsSystemProfile = false
+        updater.automaticallyChecksForUpdates = false
+        updater.automaticallyDownloadsUpdates = false
+        try updater.start()
     }
-    var automaticallyDownloadsUpdates: Bool {
-        get { updater.automaticallyDownloadsUpdates }
-        set { updater.automaticallyDownloadsUpdates = newValue }
-    }
-    func start() throws { try updater.start() }
     func checkInformation() { updater.checkForUpdateInformation() }
     func checkUpdates() { updater.checkForUpdates() }
     @objc func menuCheckForUpdates() { owner?.checkForUpdates() }
@@ -49,39 +41,30 @@ private final class AppSparkleDelegate: NSObject, SPUUpdaterDelegate {
     private weak var owner: AppUpdateController?
     init(owner: AppUpdateController) { self.owner = owner }
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
-        // This product checks on launch and on demand. Keep those sessions on
-        // the cancellable user-driver path: Sparkle's separate background
-        // driver can commit an install-on-quit after the preference is disabled.
+        // The application schedules signed probes and authorizes downloads separately.
         if updateCheck == .updatesInBackground {
             throw NSError(domain: SUSparkleErrorDomain, code: Int(SUError.installationCanceledError.rawValue),
-                          userInfo: [NSLocalizedDescriptionKey: "Update checks run at launch or on request."])
+                          userInfo: [NSLocalizedDescriptionKey: "Update scheduling is managed by TSX."])
+        }
+    }
+    func updater(_ updater: SPUUpdater, shouldProceedWithUpdate item: SUAppcastItem, updateCheck: SPUUpdateCheck) throws {
+        guard item.signingValidationStatus == .succeeded else {
+            throw NSError(domain: SUSparkleErrorDomain, code: Int(SUError.signatureError.rawValue))
         }
     }
     func updater(_ updater: SPUUpdater, shouldDownloadReleaseNotesForUpdate item: SUAppcastItem) -> Bool { false }
     func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) { owner?.loadedAppcast(appcast) }
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        owner?.foundUpdate(item.displayVersionString, publishedAt: item.date)
+        owner?.foundUpdate(item.displayVersionString, publishedAt: item.date, build: item.versionString, downloadable: !item.isInformationOnlyUpdate, informationURL: item.infoURL)
     }
-    func updaterDidNotFindUpdate(_ updater: SPUUpdater) { owner?.foundNoUpdate() }
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        if owner?.rejectsUnsignedResult == false { owner?.foundNoUpdate() }
+    }
     func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) { owner?.checkAborted(error) }
-    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) { owner?.finishedCheck() }
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) { owner?.finishedCheck(error: error) }
     func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) { owner?.willInstallVersion(item.displayVersionString) }
 
-    func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
-                 immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
-        guard let owner, owner.automaticUpdatesEnabled else { return false }
-        owner.foundUpdate(item.displayVersionString, publishedAt: item.date)
-        // This is Sparkle's supported immediate-install hook, not a custom quit
-        // or installer. A resumed installation must also wait until About is
-        // actually visible, so navigating there cannot discard a live draft.
-        owner.readyToInstall { [weak owner] choice in
-            guard choice == .install else { return }
-            owner?.willInstallVersion(item.displayVersionString)
-            owner?.installing()
-            Task { @MainActor in immediateInstallHandler() }
-        }
-        return true
-    }
+
 }
 
 @MainActor
@@ -90,8 +73,7 @@ private final class AppSparkleUserDriver: NSObject, SPUUserDriver {
     init(owner: AppUpdateController) { self.owner = owner }
 
     func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
-        let enabled = owner?.automaticUpdatesEnabled == true
-        reply(SUUpdatePermissionResponse(automaticUpdateChecks: enabled, automaticUpdateDownloading: NSNumber(value: enabled), sendSystemProfile: false))
+        reply(SUUpdatePermissionResponse(automaticUpdateChecks: false, automaticUpdateDownloading: false, sendSystemProfile: false))
     }
     func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) { owner?.showUpdateCheck(cancellation: cancellation) }
     func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
@@ -99,7 +81,7 @@ private final class AppSparkleUserDriver: NSObject, SPUUserDriver {
         owner.offerUpdate(version: appcastItem.displayVersionString, informationOnly: appcastItem.isInformationOnlyUpdate,
                           informationURL: appcastItem.infoURL, publishedAt: appcastItem.date,
                           downloadSize: appcastItem.contentLength,
-                          userInitiated: state.userInitiated, reply: reply)
+                          build: appcastItem.versionString, resumed: state.stage == .installing, userInitiated: state.userInitiated, reply: reply)
     }
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {
         // Release history uses the verified appcast description. Sparkle's
@@ -107,7 +89,10 @@ private final class AppSparkleUserDriver: NSObject, SPUUserDriver {
     }
     func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
     func showUpdateNotFoundWithError(_ error: any Error, acknowledgement: @escaping () -> Void) {
-        owner?.updateNotFound(); acknowledgement()
+        if owner?.rejectsUnsignedResult == true {
+            owner?.updateErrored(NSError(domain: SUSparkleErrorDomain, code: Int(SUError.signatureError.rawValue)))
+        } else { owner?.updateNotFound() }
+        acknowledgement()
     }
     func showUpdaterError(_ error: any Error, acknowledgement: @escaping () -> Void) {
         owner?.updateErrored(error); acknowledgement()
@@ -121,7 +106,9 @@ private final class AppSparkleUserDriver: NSObject, SPUUserDriver {
         guard let owner else { reply(.skip); return }
         owner.readyToInstall(reply: reply)
     }
-    func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) { owner?.installing() }
+    func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) {
+        owner?.installing(retry: applicationTerminated ? nil : retryTerminatingApplication)
+    }
     func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) { acknowledgement() }
     func dismissUpdateInstallation() { owner?.installationDismissed() }
     func showUpdateInFocus() { owner?.focusUpdate() }

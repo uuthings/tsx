@@ -161,6 +161,7 @@
 		C527FD7C74C659BA22D515C6 /* ScreenshotDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF37E0F15A541C694F26370B /* ScreenshotDocumentTests.swift */; };
 		C5F577C0BF8B753FBEC4485D /* TranslateXTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC78E84B857C4A2FC305202 /* TranslateXTooltip.swift */; };
 		C63B8531F6EB72B56B726FEB /* TranslationAccountUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3043C70D5D0112C1A616ED8A /* TranslationAccountUsage.swift */; };
+		C7BF0CF53178FF1A05197143 /* UpdateSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EDCF801FBE35CD96E34916 /* UpdateSchedule.swift */; };
 		C9358143E3662BC5D3D4F15E /* RegionSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6159F708B9FCAF702EF2083 /* RegionSelectionTests.swift */; };
 		D133A2AC56F2AFDE4B57FBB5 /* PermissionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = F117B65A7B0DCE10E7C5FE0E /* PermissionStatus.swift */; };
 		D346193C1E453E19DF063F35 /* ClaudeTranslationResponseParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9424E12080109473FF43F0 /* ClaudeTranslationResponseParser.swift */; };
@@ -401,6 +402,7 @@
 		E68AB3043905E700D0430C2A /* CompactUpdateDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactUpdateDialog.swift; sourceTree = "<group>"; };
 		E7CB494726329CE4E0DD136D /* CodexTranslationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexTranslationProvider.swift; sourceTree = "<group>"; };
 		E82D9A4799CC7769ADEC038A /* PanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPlacementTests.swift; sourceTree = "<group>"; };
+		E8EDCF801FBE35CD96E34916 /* UpdateSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateSchedule.swift; sourceTree = "<group>"; };
 		E93A1409588A6E90007E1DBB /* TranslationWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationWorkspace.swift; sourceTree = "<group>"; };
 		EB29644DF8E7A64A4B362ECC /* GitHubIconNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = GitHubIconNotices.txt; sourceTree = "<group>"; };
 		EC080C4D1C36842322F3F2F0 /* TranslationResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationResultView.swift; sourceTree = "<group>"; };
@@ -802,6 +804,7 @@
 				10D616F53F9ABAE617A8A121 /* AppUpdateController.swift */,
 				62018D27C80B2EB27A788544 /* ReleaseNotesPresentation.swift */,
 				5499AB41698A314C69187747 /* SparkleAppUpdater.swift */,
+				E8EDCF801FBE35CD96E34916 /* UpdateSchedule.swift */,
 			);
 			path = Updates;
 			sourceTree = "<group>";
@@ -1061,6 +1064,7 @@
 				2345E2A2B93A51ABF2BF69FC /* TranslationUsagePricing.swift in Sources */,
 				3E19CB06831504DC8D92C11B /* TranslationUsageStore.swift in Sources */,
 				9FB249C7EB068344A5105C1A /* TranslationWorkspace.swift in Sources */,
+				C7BF0CF53178FF1A05197143 /* UpdateSchedule.swift in Sources */,
 				791D09568D8574D3FB76144B /* UsageDashboardView.swift in Sources */,
 				E5632FEA4696B7D79D739821 /* UsageDatePopoverLayout.swift in Sources */,
 				02027ADB9A2D2EFCA0157A72 /* UsageDateRangeSelection.swift in Sources */,
@@ -1356,7 +1360,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/TranslateX.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 97K37J92QD;
 				ENABLE_DEBUG_DYLIB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1367,7 +1371,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.11;
+				MARKETING_VERSION = 1.3.12;
 				OTHER_CODE_SIGN_FLAGS = "$(inherited) --options runtime";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(TRANSLATEX_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_MODULE_NAME = TranslateX;
@@ -1386,7 +1390,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/TranslateX.entitlements;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 97K37J92QD;
 				ENABLE_DEBUG_DYLIB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1397,7 +1401,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.11;
+				MARKETING_VERSION = 1.3.12;
 				OTHER_CODE_SIGN_FLAGS = "$(inherited) --options runtime";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(TRANSLATEX_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_MODULE_NAME = TranslateX;

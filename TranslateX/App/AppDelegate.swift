@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var selectionID: UUID?
     private var lastExternalApplication: NSRunningApplication?
     private var isTerminating = false
+    private var approvedDraftExit = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard NSClassFromString("XCTestCase") == nil else { return }
@@ -70,7 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menuBar.start()
         windows.showMain()
-        updates.start()
+        if updates.needsUpdateChoice {
+            updates.presentUpdateChoiceIfNeeded()
+            windows.showAbout()
+        } else { updates.start() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -90,8 +94,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !isTerminating else { return .terminateLater }
+        if !approvedDraftExit, windows.serviceNavigation.exitHandler != nil {
+            if windows.serviceNavigation.isPresentingConfirmation { return .terminateCancel }
+            windows.serviceNavigation.requestExit { [weak self] in
+                self?.approvedDraftExit = true
+                Task { @MainActor [weak self] in
+                    if self?.isTerminating == false { NSApp.terminate(nil) }
+                }
+            }
+            if !approvedDraftExit {
+                windows.showSettings(shortcuts: shortcutSettings)
+                return .terminateCancel
+            }
+        }
         isTerminating = true
-        let needsCleanup = selection.hasActiveCapture || windows.services.codex.isBusy
+        let needsCleanup = updates.mustCancelBeforeQuit || selection.hasActiveCapture || windows.services.codex.isBusy
         stopAcceptingWork()
         guard needsCleanup else { return .terminateNow }
         // A posted Copy owns its restoration until the SelectionService task ends.
@@ -102,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Wait for the account controller's bounded cancellation/reaping;
             // an uncertain cleanup retains the helper's durable journal.
             _ = await windows.services.codex.shutdownAndWait()
-            sender.reply(toApplicationShouldTerminate: true)
+            updates.prepareForOrdinaryTermination { sender.reply(toApplicationShouldTerminate: true) }
         }
         return .terminateLater
     }

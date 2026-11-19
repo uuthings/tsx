@@ -5,6 +5,14 @@ import XCTest
 
 @MainActor
 final class AppUpdateControllerTests: XCTestCase {
+    private func confirmedDefaults() -> UserDefaults {
+        let name = "TSX.Presentation." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.set("notify", forKey: "UpdatePolicyMode")
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: name) }
+        return defaults
+    }
+
     func testTestHostsAndPreviewBundlesCannotStartUpdaterOrChangePreferences() {
         for identifier in [nil, "com.lumax.tsx.TestHost", "preview", "com.lumax.tsx"] {
             let updates = AppUpdateController(bundleIdentifier: identifier, isTesting: true, isReleaseBuild: true)
@@ -33,7 +41,7 @@ final class AppUpdateControllerTests: XCTestCase {
     func testBuildConfigurationControlsDefaultUpdateAvailability() {
         let backend = UpdateBackendFixture()
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false,
-                                          recordsInstalledVersions: false, backend: backend)
+                                          defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         #if DEBUG
         XCTAssertFalse(AppUpdateController.isReleaseBuild)
@@ -97,13 +105,17 @@ final class AppUpdateControllerTests: XCTestCase {
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
                                           defaults: defaults, recordsInstalledVersions: false, backend: backend)
         updates.start()
+        XCTAssertTrue(updates.needsUpdateChoice)
+        XCTAssertEqual(updates.mode, .install)
+        XCTAssertTrue(backend.calls.isEmpty)
+        XCTAssertEqual(defaults.persistentDomain(forName: suite)! as NSDictionary, before)
+        updates.setMode(.install)
         XCTAssertTrue(updates.isAvailable)
         XCTAssertTrue(updates.started)
         XCTAssertTrue(updates.canCheckForUpdates)
         XCTAssertTrue(updates.automaticallyChecksForUpdates)
         XCTAssertTrue(updates.automaticUpdatesEnabled)
-        XCTAssertEqual(backend.calls, ["start", "update"])
-        XCTAssertEqual(defaults.persistentDomain(forName: suite)! as NSDictionary, before)
+        XCTAssertEqual(backend.calls, ["start", "information"])
     }
 
     func testVersionProbeUpdatesCombinedActionStateWithoutStartingUpdater() {
@@ -116,6 +128,7 @@ final class AppUpdateControllerTests: XCTestCase {
         updates.checkFailed()
         XCTAssertTrue(updates.lastCheckFailed)
         XCTAssertEqual(updates.availableVersion, "2.3.4", "A transient error preserves the known update.")
+        updates.recordFeedVerification(true)
         updates.checkAborted(NSError(domain: SUSparkleErrorDomain, code: Int(SUError.noUpdateError.rawValue)))
         XCTAssertNil(updates.availableVersion)
         XCTAssertFalse(updates.lastCheckFailed)
@@ -169,7 +182,7 @@ extension AppUpdateControllerTests {
                 backend.automaticallyChecksForUpdates = automatic
                 backend.automaticallyDownloadsUpdates = automatic
                 let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false,
-                    isReleaseBuild: true, recordsInstalledVersions: false, backend: backend)
+                    isReleaseBuild: true, defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
                 var presentations = 0
                 updates.onPresentUpdate = { presentations += 1 }
                 updates.start()
@@ -206,7 +219,7 @@ extension AppUpdateControllerTests {
         let backend = UpdateBackendFixture()
         backend.automaticallyDownloadsUpdates = true
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false,
-            isReleaseBuild: true, recordsInstalledVersions: false, backend: backend)
+            isReleaseBuild: true, defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         updates.downloadStarted(cancellation: {})
         updates.installationDismissed()
@@ -219,7 +232,7 @@ extension AppUpdateControllerTests {
     func testReleaseNotesReuseCurrentCheckAndRetryOnlyProbesInformation() async {
         let backend = UpdateBackendFixture()
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false,
-            isReleaseBuild: true, recordsInstalledVersions: false, backend: backend)
+            isReleaseBuild: true, defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         await updates.loadReleaseNotes(force: true)
         XCTAssertEqual(backend.calls, ["start", "information"])
@@ -259,7 +272,7 @@ extension AppUpdateControllerTests {
         XCTAssertEqual(updates.updatePresentation?.version, "2.0.0")
         XCTAssertEqual(updates.updatePresentation?.usesCheckDialog, true)
         updates.retryUpdate()
-        XCTAssertNil(updates.updatePresentation)
+        XCTAssertEqual(updates.updatePresentation?.phase, .checking)
         XCTAssertEqual(backend.calls.filter { $0 == "update" }.count, 2)
         updates.showUpdateCheck(cancellation: {})
         updates.updateNotFound()
@@ -280,7 +293,7 @@ extension AppUpdateControllerTests {
             updates.retryUpdate()
             XCTAssertEqual(backend.calls.filter { $0 == "update" }.count, 2)
             XCTAssertTrue(updates.isChecking)
-            XCTAssertNil(updates.updatePresentation)
+            XCTAssertEqual(updates.updatePresentation?.phase, .checking)
 
             var cancellations = 0
             updates.showUpdateCheck { cancellations += 1; updates.finishedCheck() }
@@ -409,7 +422,7 @@ extension AppUpdateControllerTests {
     private func aboutUpdateFixture() -> (AppUpdateController, UpdateBackendFixture) {
         let backend = UpdateBackendFixture()
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
+                                          defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         updates.foundUpdate("2.0.0")
         updates.finishedCheck()
@@ -503,7 +516,6 @@ extension AppUpdateControllerTests {
             updates.offerUpdate(version: version, informationOnly: informationOnly,
                                 informationURL: URL(string: "https://example.invalid/update"),
                                 userInitiated: true) { choice = $0 }
-            updates.continueAutomaticUpdate()
             XCTAssertNil(choice)
             XCTAssertTrue(updates.showsSettingsUpdate)
             XCTAssertFalse(updates.showsMainUpdate)
@@ -540,7 +552,6 @@ extension AppUpdateControllerTests {
         XCTAssertTrue(updates.showsSettingsUpdate)
         XCTAssertFalse(updates.showsMainUpdate)
         XCTAssertEqual(backend.calls.filter { $0 == "update" }.count, 2)
-        updates.continueAutomaticUpdate()
         XCTAssertTrue(choices.isEmpty)
         updates.installPendingUpdate()
         XCTAssertEqual(choices, [.install], "The offered version waits for a new Update now action.")
@@ -687,7 +698,7 @@ extension AppUpdateControllerTests {
         defer { NSEvent.removeMonitor(monitor) }
         let windows = try isolatedWindows()
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: UpdateBackendFixture(),
+                                          defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: UpdateBackendFixture(),
                                           releases: AppReleaseNotesStore(entries: [], allowsNetworkLoading: false))
         windows.updates = updates
         updates.start()
@@ -762,7 +773,7 @@ extension AppUpdateControllerTests {
                                           currentVersion: "1.1.0", defaults: defaults,
                                           recordsInstalledVersions: true, backend: backend)
         defaults.set(true, forKey: "SUHasLaunchedBefore")
-        updates.start()
+        updates.setMode(.notify)
         XCTAssertEqual(backend.calls, ["start", "information"])
         XCTAssertNil(updates.mainReleaseNotesPresentation)
         XCTAssertNil(updates.pendingReleaseNotesVersion)
@@ -790,7 +801,7 @@ extension AppUpdateControllerTests {
     func testEachLaunchProbesWithoutDownloadingWhenAutomaticUpdatesAreOff() {
         let backend = UpdateBackendFixture()
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
+                                          defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         updates.start()
         XCTAssertEqual(backend.calls, ["start", "information"], "Only one launch probe per application lifecycle.")
@@ -802,85 +813,156 @@ extension AppUpdateControllerTests {
         XCTAssertTrue(updates.hasChecked)
     }
 
-    func testAutomaticLaunchUsesSparkleInstallAndRelaunchReplies() {
-        let backend = UpdateBackendFixture()
-        backend.automaticallyChecksForUpdates = true
-        backend.automaticallyDownloadsUpdates = true
-        let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
-        updates.start()
-        XCTAssertEqual(backend.calls, ["start", "update"])
-        var downloadChoice: SPUUserUpdateChoice?
-        updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
-                            userInitiated: true) { downloadChoice = $0 }
-        XCTAssertNil(downloadChoice, "A navigation request must not start installation before the draft guard finishes.")
-        updates.continueAutomaticUpdate()
-        XCTAssertEqual(downloadChoice, .install)
-        var installChoice: SPUUserUpdateChoice?
-        updates.readyToInstall { installChoice = $0 }
-        XCTAssertEqual(installChoice, .install)
+    func testAutomaticDownloadWaitsForVerifiedBuildAndQuitOrExplicitRestart() async throws {
+        for restart in [false, true] {
+            let (defaults, backend, updates) = policyFixture()
+            XCTAssertTrue(updates.needsUpdateChoice)
+            updates.start()
+            XCTAssertTrue(backend.calls.isEmpty)
+            updates.setMode(.install)
+            XCTAssertEqual(backend.calls, ["start", "information"])
+            updates.recordFeedVerification(true)
+            updates.foundUpdate("2.0", build: "100")
+            updates.finishedCheck()
+            await Task.yield()
+            XCTAssertEqual(backend.calls, ["start", "information", "update"])
+            var choices: [SPUUserUpdateChoice] = []
+            updates.offerUpdate(version: "2.0", informationOnly: false, informationURL: nil, build: "100", userInitiated: true) { choices.append($0) }
+            updates.readyToInstall { choices.append($0) }
+            XCTAssertNil(updates.updatePresentation)
+            XCTAssertEqual(choices, [.install])
+            XCTAssertTrue(updates.preparedForQuit)
+            if restart {
+                updates.restartNow()
+                XCTAssertEqual(choices, [.install, .install])
+            } else {
+                var finished = false
+                updates.prepareForOrdinaryTermination { finished = true }
+                XCTAssertTrue(finished)
+                XCTAssertEqual(choices, [.install], "An ordinary quit never requests a relaunch")
+            }
+            XCTAssertNotNil(defaults.object(forKey: "UpdateLastSuccess"))
+        }
     }
 
-    func testAutomaticInstallWaitsForVisibleModalAndDoesNotReenterForSameVersion() {
-        let backend = UpdateBackendFixture()
-        backend.automaticallyChecksForUpdates = true
-        backend.automaticallyDownloadsUpdates = true
-        let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
-        var navigationRequests = 0
-        updates.onPresentUpdate = { navigationRequests += 1 } // A draft keeps About from appearing.
-        updates.start()
-        var choices: [SPUUserUpdateChoice] = []
-        updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
-                            userInitiated: true) { choices.append($0) }
-        XCTAssertEqual(navigationRequests, 1)
-        XCTAssertTrue(choices.isEmpty)
-        // Only after the draft guard succeeds does the modal invoke this.
-        updates.continueAutomaticUpdate()
-        updates.continueAutomaticUpdate()
-        XCTAssertEqual(choices, [.install])
-        updates.installationDismissed()
-        updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
-                            userInitiated: true) { choices.append($0) }
-        updates.continueAutomaticUpdate()
-        XCTAssertEqual(choices, [.install], "Reappearance must not silently start the same canceled candidate again.")
+    func testBuildSwapAndRevokedConsentDoNotAuthorizeAnInstall() async {
+        for stage in ["build", "download", "extract", "ready"] {
+            let (_, _, updates) = policyFixture()
+            updates.setMode(.install)
+            updates.recordFeedVerification(true)
+            updates.foundUpdate("2", build: "50")
+            updates.finishedCheck()
+            await Task.yield()
+            var choices: [SPUUserUpdateChoice] = []
+            updates.offerUpdate(version: "2", informationOnly: false, informationURL: nil,
+                                build: stage == "build" ? "51" : "50", userInitiated: true) { choices.append($0) }
+            if stage == "build" { XCTAssertEqual(choices, [.dismiss]); continue }
+            XCTAssertEqual(choices, [.install])
+            var cancelled = 0
+            updates.downloadStarted { cancelled += 1 }
+            if stage != "download" { updates.extractionStarted() }
+            if stage == "ready" { updates.readyToInstall { choices.append($0) } }
+            updates.setMode(.manual)
+            var exited = false
+            updates.prepareForOrdinaryTermination { exited = true }
+            XCTAssertFalse(exited)
+            if stage == "extract" { updates.readyToInstall { choices.append($0) } }
+            if stage == "download" { XCTAssertEqual(cancelled, 1) } else { XCTAssertEqual(choices.last, .skip) }
+            updates.finishedCheck()
+            XCTAssertTrue(exited)
+            XCTAssertFalse(updates.preparedForQuit)
+        }
     }
 
-    func testAutomaticInstallDoesNotStartWhenDisabledBeforeModalAppears() {
-        let backend = UpdateBackendFixture()
-        backend.automaticallyChecksForUpdates = true
-        backend.automaticallyDownloadsUpdates = true
+    private func policyFixture(now: @escaping () -> Date = Date.init) -> (UserDefaults, UpdateBackendFixture, AppUpdateController) {
+        let name = "TSX.Policy." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: name) }
+        let backend = UpdateBackendFixture(defaults: defaults)
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
-        updates.start()
-        var choices: [SPUUserUpdateChoice] = []
-        updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
-                            userInitiated: true) { choices.append($0) }
-        updates.setAutomaticUpdates(false)
-        updates.continueAutomaticUpdate()
-        updates.continueAutomaticUpdate()
-        XCTAssertTrue(choices.isEmpty)
+                                          defaults: defaults, recordsInstalledVersions: false, now: now, backend: backend)
+        return (defaults, backend, updates)
     }
 
-    func testResumedReadyUpdateAlsoWaitsForVisibleModal() {
-        let backend = UpdateBackendFixture()
-        backend.automaticallyChecksForUpdates = true
-        backend.automaticallyDownloadsUpdates = true
-        let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
-        updates.start()
-        updates.foundUpdate("2.0.0")
-        var choice: SPUUserUpdateChoice?
-        updates.readyToInstall { choice = $0 }
-        XCTAssertNil(choice)
-        updates.continueAutomaticUpdate()
-        XCTAssertEqual(choice, .install)
+    func testMigrationUsesLastDownloadSettingAndAcceptsManualOverride() {
+        for checks in [false, true] {
+            for downloads in [false, true] {
+                let (defaults, backend, _) = policyFixture()
+                defaults.set(checks, forKey: "SUEnableAutomaticChecks")
+                defaults.set(true, forKey: "SUAutomaticallyUpdate")
+                defaults.set(downloads, forKey: "SUAutomaticallyUpdate")
+                let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false,
+                                                  isReleaseBuild: true, defaults: defaults, backend: backend)
+                updates.start()
+                XCTAssertTrue(updates.needsUpdateChoice)
+                updates.presentUpdateChoiceIfNeeded()
+                XCTAssertTrue(updates.isPresentingSettingsModal)
+                XCTAssertEqual(updates.mode, downloads ? .install : .notify)
+                XCTAssertTrue(backend.calls.isEmpty)
+                updates.setMode(.manual)
+                XCTAssertFalse(updates.isPresentingSettingsModal)
+                XCTAssertFalse(updates.needsUpdateChoice)
+                updates.checkIfDue(); updates.checkIfDue(reconnected: true)
+                XCTAssertEqual(backend.calls, ["start"])
+                updates.checkForUpdates()
+                XCTAssertEqual(backend.calls, ["start", "update"])
+            }
+        }
+    }
+
+    func testManualJoinsProbeAndSeesVerifiedResultOrError() {
+        for outcome in ["found", "current", "network", "unsigned"] {
+            let (defaults, backend, updates) = policyFixture()
+            updates.setMode(.notify)
+            updates.checkForUpdates(in: .settings)
+            XCTAssertEqual(updates.updatePresentation?.phase, .checking)
+            updates.recordFeedVerification(outcome != "unsigned")
+            if outcome == "found" { updates.foundUpdate("2", build: "50") }
+            if outcome == "current" || outcome == "unsigned" { updates.foundNoUpdate() }
+            let error = outcome == "network" ? URLError(.notConnectedToInternet) : nil
+            updates.finishedCheck(error: error)
+            XCTAssertEqual(backend.calls, ["start", "information"])
+            XCTAssertEqual(updates.updatePresentation?.phase, outcome == "found" ? .available : outcome == "current" ? .current : .failed)
+            XCTAssertEqual(defaults.object(forKey: "UpdateLastSuccess") != nil, outcome == "found" || outcome == "current")
+        }
+    }
+
+    func testPersistentScheduleAcrossRestartsAndDayOfFailures() {
+        var date = Date(timeIntervalSince1970: 1000000)
+        let (defaults, _, _) = policyFixture()
+        func scheduler() -> UpdateSchedule {
+            UpdateSchedule(defaults: defaults, legacyMode: .notify, monitorsNetwork: false, now: { date })
+        }
+        let first = scheduler()
+        XCTAssertFalse(first.due(reconnected: true))
+        first.select(.notify)
+        var attempts: [Int] = []
+        let origin = date
+        for minute in 0...1440 {
+            date = origin.addingTimeInterval(Double(minute * 60))
+            let restarted = scheduler()
+            if restarted.due(reconnected: true) { attempts.append(minute); restarted.failed(network: false) }
+        }
+        XCTAssertEqual(attempts, [0, 15, 75, 315, 555, 795, 1035, 1275])
+        first.succeeded()
+        XCTAssertFalse(scheduler().due(reconnected: true))
+        date = date.addingTimeInterval(86400)
+        XCTAssertTrue(scheduler().due(reconnected: false))
+        first.failed(network: true)
+        XCTAssertFalse(scheduler().due(reconnected: false))
+        XCTAssertTrue(scheduler().due(reconnected: true))
+        XCTAssertFalse(scheduler().due(reconnected: true))
+        first.succeeded()
+        date = date.addingTimeInterval(-10)
+        XCTAssertTrue(scheduler().due(reconnected: false))
+        first.select(.manual)
+        XCTAssertFalse(scheduler().due(reconnected: true))
     }
 
     func testManualUpdateWaitsForConfirmationAndThenUsesSparkleRelaunch() {
         let backend = UpdateBackendFixture()
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
+                                          defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         updates.foundUpdate("2.0.0")
         updates.finishedCheck()
@@ -888,7 +970,6 @@ extension AppUpdateControllerTests {
         var choice: SPUUserUpdateChoice?
         updates.offerUpdate(version: "2.0.0", informationOnly: false, informationURL: nil,
                             userInitiated: true) { choice = $0 }
-        updates.continueAutomaticUpdate()
         XCTAssertNil(choice)
         XCTAssertEqual(updates.updatePresentation?.phase, .available)
         updates.installPendingUpdate()
@@ -903,36 +984,16 @@ extension AppUpdateControllerTests {
         backend.automaticallyChecksForUpdates = true
         backend.automaticallyDownloadsUpdates = true
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
+                                          defaults: confirmedDefaults(), recordsInstalledVersions: false, backend: backend)
         updates.start()
         var choice: SPUUserUpdateChoice?
         updates.offerUpdate(version: "2.0.0", informationOnly: true,
                             informationURL: URL(string: "file:///untrusted"), userInitiated: false) { choice = $0 }
-        updates.continueAutomaticUpdate()
         updates.installPendingUpdate()
         XCTAssertNil(choice)
         XCTAssertNil(updates.updatePresentation?.informationURL)
         updates.dismissUpdate()
         XCTAssertEqual(choice, .dismiss)
-    }
-
-    func testTurningOffAutomaticUpdatesCancelsDownloadAndDeclinesPendingInstallation() {
-        let backend = UpdateBackendFixture()
-        backend.automaticallyChecksForUpdates = true
-        backend.automaticallyDownloadsUpdates = true
-        let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          recordsInstalledVersions: false, backend: backend)
-        updates.start()
-        var cancellations = 0
-        updates.downloadStarted { cancellations += 1 }
-        updates.setAutomaticUpdates(false)
-        XCTAssertEqual(cancellations, 1)
-        XCTAssertFalse(backend.automaticallyChecksForUpdates)
-        XCTAssertFalse(backend.automaticallyDownloadsUpdates)
-        var choice: SPUUserUpdateChoice?
-        updates.readyToInstall { choice = $0 }
-        XCTAssertEqual(choice, .skip)
-        XCTAssertNil(updates.updatePresentation)
     }
 
     func testProgressStaysIndeterminateUntilKnownAndClampsOversizedDownload() {

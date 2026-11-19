@@ -42,16 +42,17 @@ struct AboutSettingsView: View {
                         Text(L10n.string("Automatic updates")).font(.system(size: 12, weight: .medium))
                         Text(L10n.string(!updates.isAvailable
                                         ? "Online updates are disabled in this development build."
-                                        : updates.automaticUpdatesEnabled
-                                        ? "At launch, check, download and install updates, then restart."
-                                        : "Check at launch. You choose when to install."))
+                                        : updates.mode.descriptionKey))
                             .font(.system(size: 11)).foregroundStyle(p.muted)
                     }
                     Spacer()
-                    Toggle(L10n.string("Automatic updates"), isOn: Binding(
-                        get: { updates.automaticUpdatesEnabled }, set: { updates.setAutomaticUpdates($0) }
-                    ))
-                    .toggleStyle(TranslateXSwitchStyle()).disabled(!updates.isAvailable || !updates.started)
+                    LanguageMenu(label: L10n.string("Automatic updates"), selection: Binding(
+                        get: { updates.mode.rawValue },
+                        set: { if let mode = UpdateMode(rawValue: $0) { updates.setMode(mode) } }
+                    ), languages: UpdateMode.allCases.map {
+                        TranslationLanguage(id: $0.rawValue, name: L10n.string($0.titleKey))
+                    }, prominent: false, enabled: updates.isAvailable, minimumWidth: 144)
+                    .fixedSize()
                 }
                 .padding(.horizontal, 18).padding(.vertical, 13).frame(minHeight: 62)
                 .background(p.panel, in: RoundedRectangle(cornerRadius: 12))
@@ -97,7 +98,7 @@ struct AboutSettingsView: View {
             .updateDialogKeyboardAction(action: requestUpdate)
             .focused($updateActionFocused)
             .accessibilityIdentifier("settings.checkForUpdates")
-            .disabled(!updates.canCheckForUpdates || updates.isChecking)
+            .disabled(!updates.canCheckForUpdates)
         }
         .padding(.horizontal, 18).padding(.vertical, 16)
     }
@@ -152,12 +153,14 @@ struct AboutSettingsView: View {
     }
 
     private var updateActionTitle: String {
+        if updates.preparedForQuit || updates.canRetryTermination { return L10n.string("Restart now") }
         if updates.isChecking { return L10n.string("Checking for updates") }
         if let version = updates.availableVersion { return String(format: L10n.string("Update to v%@"), version) }
         if updates.lastCheckFailed { return L10n.string("Retry update check") }
         return L10n.string("Check for updates")
     }
     private var updateNotice: String {
+        if updates.preparedForQuit { return L10n.string("The update is ready and will be installed when you quit.") }
         if updates.lastCheckFailed { return L10n.string("Could not check for updates. Please try again.") }
         return String(format: L10n.string("New version v%@ is available"), updates.availableVersion ?? "")
     }
@@ -174,7 +177,16 @@ struct SettingsUpdateOverlay: View {
                 Color.black.opacity(updates.showsSettingsUpdate && updates.updatePresentation?.usesCheckDialog == true
                                     ? (theme.isDark ? 0.20 : 0.07) : (theme.isDark ? 0.46 : 0.23)).ignoresSafeArea()
                     .contentShape(Rectangle()).onTapGesture {}
-                if updates.showsSettingsUpdate, let presentation = updates.updatePresentation {
+                if updates.isChoosingUpdateMode {
+                    TranslationServiceConfirmation(
+                        title: L10n.string("How should TSX check for updates?"),
+                        message: L10n.string(updates.mode == .install
+                            ? "Your previous version installed updates automatically. TSX will now download updates and install them when you quit. You can also restart immediately when an update is ready."
+                            : "Updates are checked every 24 hours. A badge indicates a new version, and you decide when to download it. You can change this in Settings."),
+                        cancelTitle: L10n.string(UpdateMode.manual.titleKey),
+                        confirmTitle: L10n.string(updates.mode.titleKey), destructive: false,
+                        cancel: { updates.setMode(.manual) }, confirm: { updates.setMode(updates.mode) })
+                } else if updates.showsSettingsUpdate, let presentation = updates.updatePresentation {
                     let dialogSize = UpdateDialogLayout.size(in: geometry.size,
                                                             showsNotes: [.available, .ready].contains(presentation.phase))
                     AppUpdateDialogView(updates: updates, presentation: presentation, dialogSize: dialogSize)
@@ -188,7 +200,8 @@ struct SettingsUpdateOverlay: View {
         }
         .ignoresSafeArea()
         .onExitCommand {
-            if updates.showsSettingsUpdate { updates.dismissUpdate() }
+            if updates.isChoosingUpdateMode { updates.setMode(.manual) }
+            else if updates.showsSettingsUpdate { updates.dismissUpdate() }
             else { updates.dismissReleaseNotes() }
         }
     }
@@ -240,8 +253,6 @@ struct AppUpdateInstallationView: View {
                 HStack { Spacer(minLength: 0); actions }
             }
         }
-        .onAppear { updates.continueAutomaticUpdate() }
-        .onChange(of: presentation) { _, _ in updates.continueAutomaticUpdate() }
         .task { await updates.loadReleaseNotes() }
     }
 
@@ -317,8 +328,11 @@ struct AppUpdateInstallationView: View {
                 if presentation.informationOnly, let url = presentation.informationURL {
                     Link(L10n.string("View details"), destination: url).buttonStyle(ReleaseDialogButtonStyle(primary: true))
                         .updateDialogKeyboardAction { openURL(url) }
+                } else if presentation.phase == .installing, updates.canRetryTermination {
+                    Button(L10n.string("Restart now"), action: updates.restartNow)
+                        .buttonStyle(ReleaseDialogButtonStyle(primary: true))
                 } else if !busy {
-                    Button(L10n.string("Update now")) { updates.installPendingUpdate() }
+                    Button(L10n.string(presentation.phase == .ready ? "Restart now" : "Update now")) { updates.installPendingUpdate() }
                         .buttonStyle(ReleaseDialogButtonStyle(primary: true))
                         .updateDialogKeyboardAction(action: updates.installPendingUpdate)
                         .keyboardShortcut(.defaultAction)
@@ -329,7 +343,8 @@ struct AppUpdateInstallationView: View {
 
     private var title: String {
         switch presentation.phase {
-        case .available, .ready: return L10n.string("New version available")
+        case .available: return L10n.string("New version available")
+        case .ready: return L10n.string("Update is ready")
         case .current: return L10n.string("You're up to date")
         case .checking: return L10n.string("Checking for updates")
         case .failed: return L10n.string("Update could not be completed")
@@ -339,7 +354,8 @@ struct AppUpdateInstallationView: View {
     private var status: String? {
         if presentation.informationOnly { return L10n.string("This update requires a separate download. View its details to continue.") }
         switch presentation.phase {
-        case .available, .ready: return nil
+        case .available: return nil
+        case .ready: return L10n.string(updates.preparedForQuit ? "The update will be installed when you quit. You can also restart now." : "Restart now to install the downloaded update.")
         case .checking: return L10n.string("Connecting to the update server")
         case .downloading: return L10n.string("Downloading the update")
         case .extracting: return L10n.string("Verifying and preparing the update")

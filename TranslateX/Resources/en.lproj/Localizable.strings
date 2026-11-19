@@ -1225,3 +1225,17 @@
 "Select all" = "Select all";
 "Select results" = "Select results";
 "Loading statistics…" = "Loading statistics…";
+"Manual only" = "Manual only";
+"Automatically check and notify" = "Automatically check and notify";
+"Automatically download and install" = "Automatically download and install";
+"Check only when you choose Check for updates." = "Check only when you choose Check for updates.";
+"Check every 24 hours and mark new versions. You choose when to download." = "Check every 24 hours and mark new versions. You choose when to download.";
+"Check every 24 hours, download updates and install when you quit." = "Check every 24 hours, download updates and install when you quit.";
+"How should TSX check for updates?" = "How should TSX check for updates?";
+"Restart now" = "Restart now";
+"Your previous version installed updates automatically. TSX will now download updates and install them when you quit. You can also restart immediately when an update is ready." = "Your previous version installed updates automatically. TSX will now download updates and install them when you quit. You can also restart immediately when an update is ready.";
+"Updates are checked every 24 hours. A badge indicates a new version, and you decide when to download it. You can change this in Settings." = "Updates are checked every 24 hours. A badge indicates a new version, and you decide when to download it. You can change this in Settings.";
+"The update is ready and will be installed when you quit." = "The update is ready and will be installed when you quit.";
+"Update is ready" = "Update is ready";
+"The update will be installed when you quit. You can also restart now." = "The update will be installed when you quit. You can also restart now.";
+"Restart now to install the downloaded update." = "Restart now to install the downloaded update.";

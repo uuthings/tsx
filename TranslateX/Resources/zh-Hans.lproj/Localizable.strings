@@ -1225,3 +1225,17 @@
 "Select all" = "全选";
 "Select results" = "全选结果";
 "Loading statistics…" = "正在加载统计…";
+"Manual only" = "仅手动";
+"Automatically check and notify" = "自动检查并提醒";
+"Automatically download and install" = "自动下载并安装";
+"Check only when you choose Check for updates." = "只在你点击「检查更新」时联网。";
+"Check every 24 hours and mark new versions. You choose when to download." = "每 24 小时检查一次，发现新版后显示标记。由你决定何时下载。";
+"Check every 24 hours, download updates and install when you quit." = "每 24 小时检查一次，自动下载新版，在你正常退出时安装。";
+"How should TSX check for updates?" = "希望 TSX 如何检查更新？";
+"Restart now" = "立即重启";
+"Your previous version installed updates automatically. TSX will now download updates and install them when you quit. You can also restart immediately when an update is ready." = "你已在旧版开启自动安装。今后 TSX 会每 24 小时检查一次，下载后等你正常退出时安装。也可以在更新准备好后立即重启。";
+"Updates are checked every 24 hours. A badge indicates a new version, and you decide when to download it. You can change this in Settings." = "每 24 小时自动检查一次。发现新版后会显示标记，由你决定何时下载。你可以随时在设置里更改。";
+"The update is ready and will be installed when you quit." = "更新已准备好，将在正常退出时安装。";
+"Update is ready" = "更新已准备好";
+"The update will be installed when you quit. You can also restart now." = "将在你正常退出时安装，也可以立即重启。";
+"Restart now to install the downloaded update." = "可以立即重启以安装已下载的更新。";

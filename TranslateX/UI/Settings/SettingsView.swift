@@ -61,7 +61,8 @@ struct SettingsView: View {
         }
         .onChange(of: navigation.requestedTab, initial: true) { _, request in
             guard let request else { return }
-            selectTab(request)
+            if request == 5, updates?.isChoosingUpdateMode == true { tab = request }
+            else { selectTab(request) }
             navigation.requestedTab = nil
         }
         .onChange(of: navigation.requestedLanguageSide, initial: true) { _, side in

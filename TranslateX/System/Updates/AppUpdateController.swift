@@ -5,8 +5,6 @@ import Sparkle
 @MainActor
 protocol AppUpdaterBackend: AnyObject {
     var canCheckForUpdates: Bool { get }
-    var automaticallyChecksForUpdates: Bool { get set }
-    var automaticallyDownloadsUpdates: Bool { get set }
     func start() throws
     func checkInformation()
     func checkUpdates()
@@ -93,8 +91,27 @@ enum AppUpdateLocation { case settings, mainWindow }
 @Observable
 final class AppUpdateController {
     private(set) var canCheckForUpdates = false
-    private(set) var automaticallyChecksForUpdates = false
-    private(set) var automaticallyDownloadsUpdates = false
+    private(set) var mode: UpdateMode = .notify
+    var automaticallyChecksForUpdates: Bool { started && mode != .manual }
+    var automaticallyDownloadsUpdates: Bool { started && mode == .install }
+    var needsUpdateChoice: Bool { isAvailable && !schedule.confirmed }
+    private(set) var isChoosingUpdateMode = false
+    private(set) var preparedForQuit = false
+    private var retryTermination: (() -> Void)?
+    var canRetryTermination: Bool { retryTermination != nil }
+    private let schedule: UpdateSchedule
+    private var probeActive = false
+    private var feedVerified = false
+    private var resolvedFeed = false
+    private var candidateBuild: String?
+    private var automaticBuild: String?
+    private var canDownloadCandidate = false
+    private var candidateInformationURL: URL?
+    private var withdrawing = false
+    private var resumedOffer = false
+    private var skippedPreferences: [String: Any]?
+    private var terminationReplies: [() -> Void] = []
+    private static let skippedKeys = ["SUSkippedVersion", "SUSkippedMajorVersion", "SUSkippedMajorSubreleaseVersion"]
     private(set) var started = false
     private(set) var availableVersion: String?
     private var availablePublishedAt: Date?
@@ -115,7 +132,7 @@ final class AppUpdateController {
     var showsMainUpdate: Bool { updateLocation == .mainWindow && mainUpdatePresentationApproved && updatePresentation != nil }
     var showsSettingsUpdate: Bool { updateLocation == .settings && updatePresentation != nil }
     var isPresentingMainModal: Bool { showsMainUpdate || mainReleaseNotesPresentation != nil }
-    var isPresentingSettingsModal: Bool { showsSettingsUpdate || releaseNotesPresentation != nil }
+    var isPresentingSettingsModal: Bool { isChoosingUpdateMode || showsSettingsUpdate || releaseNotesPresentation != nil }
     @ObservationIgnored var onPresentUpdate: (() -> Void)?
     @ObservationIgnored var onPresentReleaseNotes: (() -> Void)?
     @ObservationIgnored private var backend: (any AppUpdaterBackend)?
@@ -131,7 +148,6 @@ final class AppUpdateController {
     private enum SessionPhase { case checking, offered, installing, cancelled }
     @ObservationIgnored private var checkOrigin: CheckOrigin = .launch
     @ObservationIgnored private var sessionPhase: SessionPhase = .checking
-    @ObservationIgnored private var automaticInstallAttemptedVersion: String?
     @ObservationIgnored private var installRequested = false
     @ObservationIgnored private var directlyRequestedVersion: String?
     @ObservationIgnored private var offeredDownloadBytes: UInt64 = 0
@@ -152,6 +168,7 @@ final class AppUpdateController {
          currentVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—",
          defaults: UserDefaults = .standard,
          recordsInstalledVersions: Bool = AppUpdateController.isReleaseBuild,
+         now: @escaping () -> Date = Date.init,
          backend: (any AppUpdaterBackend)? = nil,
          releases: AppReleaseNotesStore? = nil) {
         self.currentVersion = currentVersion
@@ -163,20 +180,39 @@ final class AppUpdateController {
         // A release update must never replace Xcode's development product.
         let available = bundleIdentifier == "com.lumax.tsx" && !isTesting && isReleaseBuild
         self.releases = releases ?? AppReleaseNotesStore(allowsNetworkLoading: available)
+        schedule = UpdateSchedule(defaults: defaults, legacyMode: defaults.bool(forKey: "SUAutomaticallyUpdate") ? .install : .notify,
+                                  monitorsNetwork: backend == nil, now: now)
+        mode = schedule.mode
+        if available, let version = defaults.string(forKey: "TSXAvailableVersion"),
+           SUStandardVersionComparator().compareVersion(version, toVersion: currentVersion) == .orderedDescending {
+            availableVersion = version
+        }
         isAvailable = available
     }
 
     func start() {
-        guard !started, startBackend(), let backend else { return }
+        guard isAvailable, !started else { return }
         prepareInstalledReleaseNotes()
-        // A launch always checks, including when installation is disabled. The
-        // information-only API cannot download or install an update.
-        automaticSession = automaticUpdatesEnabled
-        checkOrigin = .launch; sessionPhase = .checking
+        guard schedule.confirmed, startBackend() else { return }
+        schedule.observe { [weak self] in self?.checkIfDue(reconnected: $0) }
+        checkIfDue()
+    }
+
+    func checkIfDue(reconnected: Bool = false) {
+        guard started, !probeActive, !isChecking, backend?.canCheckForUpdates == true, updatePresentation == nil,
+              !automaticSession, !withdrawing, schedule.due(reconnected: reconnected) else { return }
+        checkOrigin = .launch
+        beginProbe()
+    }
+
+    private func beginProbe() {
+        feedVerified = false
+        resolvedFeed = false
+        probeActive = true
+        sessionPhase = .checking
         releases.beginLoading(force: true)
         isChecking = true
-        if automaticSession { backend.checkUpdates() }
-        else { backend.checkInformation() }
+        backend?.checkInformation()
     }
 
     private func startBackend() -> Bool {
@@ -198,31 +234,49 @@ final class AppUpdateController {
     func refreshUpdaterState() {
         guard isAvailable, let backend else { return }
         canCheckForUpdates = backend.canCheckForUpdates
-        automaticallyChecksForUpdates = backend.automaticallyChecksForUpdates
-        automaticallyDownloadsUpdates = backend.automaticallyDownloadsUpdates
+        if probeActive || automaticSession { canCheckForUpdates = true }
     }
 
     func checkForUpdates(in location: AppUpdateLocation = .mainWindow) {
+        if probeActive {
+            updateLocation = location
+            checkOrigin = .manual
+            present(.init(phase: .checking))
+            return
+        }
+        if automaticSession { revealAutomatic(in: location); return }
         if updatePresentation != nil { focusUpdate(); return }
         beginUpdateCheck(in: location, installing: nil)
     }
 
     private func beginUpdateCheck(in location: AppUpdateLocation, installing version: String?) {
-        guard started, canCheckForUpdates, !isChecking else { return }
+        guard started, canCheckForUpdates, !isChecking, !withdrawing else { return }
         updateLocation = location
         directlyRequestedVersion = version
         offeredDownloadBytes = 0
         installRequested = false
         automaticSession = false
+        feedVerified = false; resolvedFeed = false
         checkOrigin = .manual; sessionPhase = .checking
         releases.beginLoading(force: true)
         lastCheckFailed = false
         isChecking = true
+        present(.init(phase: .checking))
         backend?.checkUpdates()
     }
 
     func performUpdateAction(in location: AppUpdateLocation = .mainWindow) {
+        if location == .settings, canRetryTermination { restartNow(); return }
+        if probeActive { checkForUpdates(in: location); return }
+        if automaticSession {
+            if preparedForQuit && location == .settings {
+                updateLocation = location
+                restartNow()
+            } else { revealAutomatic(in: location) }
+            return
+        }
         if let presentation = updatePresentation {
+            if presentation.phase == .checking && updateLocation == location { return }
             if location == .settings, [.available, .ready].contains(presentation.phase) {
                 updateLocation = .settings
                 mainUpdatePresentationApproved = false
@@ -249,35 +303,89 @@ final class AppUpdateController {
         else { checkForUpdates(in: location) }
     }
 
-    func setAutomaticUpdates(_ enabled: Bool) {
-        guard isAvailable, let backend else { return }
-        // Sparkle persists these preferences; there is no second copy of them.
-        if enabled {
-            backend.automaticallyChecksForUpdates = true
-            backend.automaticallyDownloadsUpdates = true
-        } else {
-            backend.automaticallyDownloadsUpdates = false
-            backend.automaticallyChecksForUpdates = false
-        }
-        refreshUpdaterState()
-        if !enabled, automaticSession {
-            let cancel = cancellation
+    func presentUpdateChoiceIfNeeded() {
+        isChoosingUpdateMode = needsUpdateChoice
+    }
+
+    func setMode(_ value: UpdateMode) {
+        guard isAvailable else { return }
+        let wasInstall = mode == .install
+        isChoosingUpdateMode = false
+        schedule.select(value)
+        mode = value
+        if wasInstall && value != .install && automaticSession { withdrawInstallation() }
+        if started { checkIfDue() } else { start() }
+    }
+
+    func setAutomaticUpdates(_ enabled: Bool) { setMode(enabled ? .install : .notify) }
+    func setAutomaticChecks(_ enabled: Bool) { setMode(enabled ? .notify : .manual) }
+    func setAutomaticDownloads(_ enabled: Bool) { setAutomaticUpdates(enabled) }
+
+    private func withdrawInstallation() {
+        withdrawing = true
+        preparedForQuit = false
+        if let reply = updateReply {
+            updateReply = nil
+            if resumedOffer {
+                skippedPreferences = Dictionary(uniqueKeysWithValues: Self.skippedKeys.compactMap { key in
+                    defaults.object(forKey: key).map { (key, $0) }
+                })
+            }
+            reply(sessionPhase == .installing ? .skip : .dismiss)
+        } else if let cancel = cancellation {
             cancellation = nil
-            if cancel != nil { sessionPhase = .cancelled }
-            cancel?()
+            cancel()
         }
     }
 
-    // Kept for the existing menu/settings integration while the two controls
-    // migrate to the single automatic-update preference.
-    func setAutomaticChecks(_ enabled: Bool) { setAutomaticUpdates(enabled) }
-    func setAutomaticDownloads(_ enabled: Bool) { setAutomaticUpdates(enabled) }
+    var mustCancelBeforeQuit: Bool { withdrawing || (resumedOffer && !automaticSession && !installRequested) }
 
-    func foundUpdate(_ version: String, publishedAt: Date? = nil) {
+    func prepareForOrdinaryTermination(_ completion: @escaping () -> Void) {
+        if mustCancelBeforeQuit {
+            terminationReplies.append(completion)
+            if !withdrawing { withdrawInstallation() }
+            return
+        }
+        completion()
+    }
+
+    private func revealAutomatic(in location: AppUpdateLocation) {
+        updateLocation = location
+        if updatePresentation == nil { present(.init(version: availableVersion, phase: preparedForQuit ? .ready : .checking)) }
+        else { onPresentUpdate?() }
+    }
+
+    func restartNow() {
+        if let retryTermination { self.retryTermination = nil; retryTermination(); return }
+        guard preparedForQuit, mode == .install, !withdrawing, let reply = updateReply else { return }
+        preparedForQuit = false
+        automaticSession = false
+        updateReply = nil
+        installRequested = true
+        reply(.install)
+    }
+
+    func recordFeedVerification(_ verified: Bool) { feedVerified = verified }
+
+    private func recordResolution() {
+        if isAvailable, feedVerified, !resolvedFeed, !probeActive { schedule.succeeded() }
+        resolvedFeed = true
+    }
+
+    var rejectsUnsignedResult: Bool { !feedVerified }
+
+    func foundUpdate(_ version: String, publishedAt: Date? = nil, build: String? = nil, downloadable: Bool = true, informationURL: URL? = nil) {
+        candidateBuild = build ?? version
+        canDownloadCandidate = downloadable
+        candidateInformationURL = informationURL?.scheme == "https" ? informationURL : nil
+        recordResolution()
+        if isAvailable, feedVerified { defaults.set(version, forKey: "TSXAvailableVersion") }
         availablePublishedAt = publishedAt ?? (availableVersion == version ? availablePublishedAt : nil)
         availableVersion = version; hasChecked = true; lastCheckFailed = false
     }
     func foundNoUpdate() {
+        recordResolution()
+        if isAvailable, feedVerified { defaults.removeObject(forKey: "TSXAvailableVersion") }
         directlyRequestedVersion = nil; installRequested = false
         availablePublishedAt = nil
         availableVersion = nil; hasChecked = true; lastCheckFailed = false; isChecking = false
@@ -287,23 +395,78 @@ final class AppUpdateController {
         lastCheckFailed = true; isChecking = false
         releases.loadingFailed()
     }
+    private var cycleError: NSError?
     func checkAborted(_ error: any Error) {
+        cycleError = error as NSError
         let error = error as NSError
-        if error.domain == SUSparkleErrorDomain && error.code == Int(SUError.noUpdateError.rawValue) { foundNoUpdate() }
+        if error.domain == SUSparkleErrorDomain && error.code == Int(SUError.noUpdateError.rawValue) {
+            if feedVerified { foundNoUpdate() } else { checkFailed() }
+        }
         else if error.domain != SUSparkleErrorDomain || error.code != Int(SUError.installationCanceledError.rawValue) { checkFailed() }
         else {
             directlyRequestedVersion = nil; installRequested = false; isChecking = false
             sessionPhase = .cancelled; releases.loadingFailed()
         }
     }
-    func finishedCheck() {
+    func finishedCheck(error: Error? = nil) {
+        let failure = (error as NSError?) ?? cycleError
+        cycleError = nil
+        let current = failure?.domain == SUSparkleErrorDomain && failure?.code == Int(SUError.noUpdateError.rawValue)
+        let cancelled = sessionPhase == .cancelled || (failure?.domain == SUSparkleErrorDomain && failure?.code == Int(SUError.installationCanceledError.rawValue))
+        let success = feedVerified && resolvedFeed && (failure == nil || current)
+        let probe = probeActive
+        if probe, success, !cancelled { schedule.succeeded() }
+        let visible = probe && checkOrigin == .manual && !cancelled
+        let autoDownload = probe && success && mode == .install && availableVersion != nil && canDownloadCandidate
+        if !success && !cancelled && (probe || sessionPhase == .checking), failure != nil || probe {
+            schedule.failed(network: failure.flatMap(AppUpdateFailure.classify) == .networkUnavailable)
+        }
+        if probe, !success, !cancelled { checkFailed() }
+        probeActive = false
+        automaticSession = false
+        withdrawing = false
+        preparedForQuit = false
+        retryTermination = nil
+        resumedOffer = false
+        if let snapshot = skippedPreferences {
+            for key in Self.skippedKeys { defaults.set(snapshot[key], forKey: key) }
+            skippedPreferences = nil
+        }
+        let replies = terminationReplies
+        terminationReplies.removeAll()
         isChecking = false; releases.loadingFailed(); refreshUpdaterState()
-        // Preserve origin/phase until the next session: Sparkle may deliver the
-        // error acknowledgement after its delegate/completion callbacks.
+        if visible {
+            if success, let version = availableVersion {
+                present(.init(version: version, phase: .available, informationURL: candidateInformationURL,
+                              informationOnly: !canDownloadCandidate, publishedAt: availablePublishedAt))
+            } else if success { present(.init(phase: .current)) }
+            else { present(.init(phase: .failed, isCheckFailure: true, failure: failure.flatMap(AppUpdateFailure.classify))) }
+        }
+        replies.forEach { $0() }
+        if autoDownload, replies.isEmpty, let build = candidateBuild {
+            Task { @MainActor [weak self] in
+                guard let self, mode == .install, !probeActive, !isChecking, backend?.canCheckForUpdates == true else { return }
+                automaticSession = true
+                automaticBuild = build
+                installRequested = false
+                sessionPhase = .checking
+                isChecking = true
+                feedVerified = false; resolvedFeed = false
+                backend?.checkUpdates()
+            }
+        }
     }
 
     func installPendingUpdate() {
-        guard updatePresentation?.informationOnly == false, let reply = updateReply else { return }
+        if preparedForQuit { restartNow(); return }
+        guard updatePresentation?.informationOnly == false else { return }
+        guard let reply = updateReply else {
+            if let presentation = updatePresentation, presentation.phase == .available {
+                updatePresentation = nil
+                beginUpdateCheck(in: updateLocation, installing: presentation.version)
+            }
+            return
+        }
         directlyRequestedVersion = nil
         updateReply = nil
         installRequested = true
@@ -317,20 +480,12 @@ final class AppUpdateController {
         mainUpdatePresentationApproved = true
     }
 
-    /// The visible main-window modal continues automatic installation only
-    /// after the settings draft guard has accepted the window handoff.
-    func continueAutomaticUpdate() {
-        guard automaticSession, automaticUpdatesEnabled, !installRequested,
-              let presentation = updatePresentation,
-              [.available, .ready].contains(presentation.phase),
-              !presentation.informationOnly, let version = presentation.version,
-              automaticInstallAttemptedVersion != version, updateReply != nil else { return }
-        automaticInstallAttemptedVersion = version
-        installPendingUpdate()
-    }
-
     func dismissUpdate() {
         guard let presentation = updatePresentation else { return }
+        if automaticSession {
+            updatePresentation = nil
+            return
+        }
         if [.extracting, .installing].contains(presentation.phase) { return }
         directlyRequestedVersion = nil
         let cancel = cancellation
@@ -345,9 +500,11 @@ final class AppUpdateController {
     }
 
     func showUpdateCheck(cancellation: @escaping () -> Void) {
+        if sessionPhase == .cancelled { cancellation(); return }
         self.cancellation = cancellation
+        if withdrawing { withdrawInstallation(); return }
         sessionPhase = .checking
-        if !automaticSession {
+        if !automaticSession && !probeActive {
             checkOrigin = .manual
             present(.init(phase: .checking))
         }
@@ -355,14 +512,25 @@ final class AppUpdateController {
 
     func offerUpdate(version: String, informationOnly: Bool, informationURL: URL?, publishedAt: Date? = nil,
                      downloadSize: UInt64 = 0,
-                     userInitiated: Bool, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+                     build: String? = nil, resumed: Bool = false, userInitiated: Bool, reply: @escaping (SPUUserUpdateChoice) -> Void) {
         offeredDownloadBytes = downloadSize
-        foundUpdate(version, publishedAt: publishedAt)
+        foundUpdate(version, publishedAt: publishedAt, build: build, downloadable: !informationOnly)
         sessionPhase = .offered
         isChecking = false
         cancellation = nil
         updateReply = reply
-        if !userInitiated, updateLocation == .mainWindow { automaticSession = automaticUpdatesEnabled }
+        if automaticSession {
+            updateReply = nil
+            if resumed {
+                if automaticBuild != candidateBuild { withdrawing = true }
+                resumedOffer = true
+                readyToInstall(reply: reply)
+            } else if mode == .install, !withdrawing, automaticBuild == candidateBuild, !informationOnly {
+                reply(.install)
+            } else { reply(.dismiss) }
+            return
+        }
+        if resumed { resumedOffer = true; readyToInstall(reply: reply); return }
         let requestedVersion = directlyRequestedVersion
         directlyRequestedVersion = nil
         let safeURL = informationURL?.scheme == "https" ? informationURL : nil
@@ -378,7 +546,7 @@ final class AppUpdateController {
         self.cancellation = cancellation
         receivedDownloadBytes = 0; expectedDownloadBytes = offeredDownloadBytes
         updateDownloadProgress()
-        if automaticSession, !automaticUpdatesEnabled { dismissUpdate() }
+        if withdrawing { withdrawInstallation() }
     }
     func downloadExpected(_ bytes: UInt64) {
         // An unknown HTTP length must not erase the size from the verified feed.
@@ -396,15 +564,29 @@ final class AppUpdateController {
     func extractionProgress(_ progress: Double) { setPhase(.extracting, progress: progress.isFinite ? min(1, max(0, progress)) : nil) }
     func readyToInstall(reply: @escaping (SPUUserUpdateChoice) -> Void) {
         cancellation = nil
-        if automaticSession, !automaticUpdatesEnabled { reply(.skip); updatePresentation = nil; return }
+        sessionPhase = .installing
+        if automaticSession {
+            updateReply = reply
+            if withdrawing || mode != .install { withdrawInstallation() }
+            else {
+                preparedForQuit = true
+                if updatePresentation != nil { setPhase(.ready, progress: nil) }
+            }
+            return
+        }
         setPhase(.ready, progress: nil)
         if installRequested { reply(.install) }
         else { updateReply = reply }
     }
-    func installing() { cancellation = nil; updateReply = nil; setPhase(.installing, progress: nil) }
+    func installing(retry: (() -> Void)? = nil) {
+        retryTermination = retry
+        cancellation = nil
+        updateReply = nil
+        setPhase(.installing, progress: nil)
+    }
     func updateErrored(_ error: (any Error)? = nil) {
         let isCheckFailure = sessionPhase == .checking
-        let silent = sessionPhase == .cancelled || (isCheckFailure && checkOrigin != .manual)
+        let silent = (automaticSession && updatePresentation == nil) || sessionPhase == .cancelled || (isCheckFailure && checkOrigin != .manual)
         checkFailed(); cancellation = nil; updateReply = nil
         guard !silent else { return }
         present(.init(version: availableVersion, phase: .failed, isCheckFailure: isCheckFailure,
@@ -412,9 +594,10 @@ final class AppUpdateController {
     }
     func updateNotFound() {
         foundNoUpdate(); cancellation = nil; updateReply = nil
-        if !automaticSession { present(.init(phase: .current)) }
+        if !automaticSession && checkOrigin == .manual { present(.init(phase: .current)) }
     }
     func installationDismissed() {
+        retryTermination = nil
         directlyRequestedVersion = nil
         cancellation = nil; updateReply = nil; installRequested = false
         if let phase = updatePresentation?.phase, ![.failed, .current].contains(phase) { updatePresentation = nil }
@@ -422,6 +605,7 @@ final class AppUpdateController {
     func focusUpdate() { if updatePresentation != nil { onPresentUpdate?() } }
     private func setPhase(_ phase: AppUpdatePresentation.Phase, progress: Double?) {
         if [.downloading, .extracting, .ready, .installing].contains(phase) { sessionPhase = .installing }
+        if automaticSession && updatePresentation == nil { return }
         var presentation = updatePresentation ?? .init(version: availableVersion, phase: phase, publishedAt: availablePublishedAt)
         presentation.phase = phase; presentation.progress = progress
         presentation.downloadedBytes = phase == .downloading ? receivedDownloadBytes : 0
@@ -481,7 +665,9 @@ final class AppUpdateController {
         }
     }
     func loadReleaseNotes(force: Bool = false) async {
-        guard releases.needsLoad(force: force), startBackend() else { return }
+        guard schedule.confirmed, !automaticSession, !withdrawing, mode != .manual || isChecking,
+              (isChecking || releaseNotesPresentation == .recent || mainReleaseNotesPresentation == .recent || force),
+              releases.needsLoad(force: force), startBackend() else { return }
         if isChecking {
             releases.beginLoading(force: force)
             return
@@ -489,13 +675,14 @@ final class AppUpdateController {
         guard canCheckForUpdates, releases.beginLoading(force: force) else { return }
         automaticSession = false
         checkOrigin = .releaseNotes; sessionPhase = .checking
-        isChecking = true; lastCheckFailed = false
-        backend?.checkInformation()
+        lastCheckFailed = false
+        beginProbe()
     }
 
     func loadedAppcast(_ appcast: SUAppcast) {
         // A failed signature can still reach this callback in Sparkle's recovery
         // mode. Never display that remote content, even if Sparkle finds an update.
+        recordFeedVerification(appcast.signingValidationStatus == .succeeded)
         releases.receive(appcast.items.map(AppcastReleaseNotes.init), status: appcast.signingValidationStatus)
     }
 
@@ -540,8 +727,10 @@ final class AppUpdateController {
             url: URL(string: "https://github.com/uuthings/tsx/releases")!)] : shortReleaseNotes ? [.init(version: "1.0.0", publishedAt: .distantPast,
             notes: "## 中文\n- 更新说明现在显示在翻译窗口中央。\n- 改善服务切换图标的圆角。\n## English\n- Release notes now appear over the translation workspace.\n- Service action icons have softer corners.",
             url: URL(string: "https://github.com/uuthings/tsx/releases/tag/v1.0.0")!)] : nil
+        let previewDefaults = UserDefaults(suiteName: "TSX.UpdateVisualFixture")!
+        previewDefaults.setVolatileDomain(["UpdatePolicyMode": "notify"], forName: UserDefaults.argumentDomain)
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false, isReleaseBuild: true,
-                                          currentVersion: compactReleaseNotes ? (previewAvailableUpdate ? "1.1.1" : "1.1.2") : "1.0.0", recordsInstalledVersions: false,
+                                          currentVersion: compactReleaseNotes ? (previewAvailableUpdate ? "1.1.1" : "1.1.2") : "1.0.0", defaults: previewDefaults, recordsInstalledVersions: false,
                                           backend: backend, releases: AppReleaseNotesStore(entries: entries, allowsNetworkLoading: false))
         backend.owner = updates
         if previewInstalledNotes, updates.releases.entries.contains(where: { $0.version == updates.currentVersion }) {
@@ -580,7 +769,11 @@ private final class VisualReviewAppUpdater: AppUpdaterBackend {
     }
 
     func start() throws {}
-    func checkInformation() { owner?.foundUpdate(fixtureVersion); owner?.finishedCheck() }
+    func checkInformation() {
+        owner?.recordFeedVerification(true)
+        owner?.foundUpdate(fixtureVersion)
+        owner?.finishedCheck()
+    }
     func checkUpdates() {
         guard let checkOutcome else { offerUpdate(); return }
         owner?.showUpdateCheck { [weak self] in

@@ -1423,6 +1423,7 @@ private final class UpdateDialogReviewBackend: AppUpdaterBackend {
         let release = AppRelease(version: "1.3.4", publishedAt: backend.publication,
             notes: "## 中文\n\(chinese)\n## English\n\(english)",
             url: URL(string: "https://example.invalid/constructed-release")!)
+        defaults.set("notify", forKey: "UpdatePolicyMode")
         let updates = AppUpdateController(bundleIdentifier: "com.lumax.tsx", isTesting: false,
             isReleaseBuild: true, currentVersion: "1.3.3", defaults: defaults, recordsInstalledVersions: false,
             backend: backend, releases: AppReleaseNotesStore(entries: [release], allowsNetworkLoading: false))
@@ -1433,6 +1434,7 @@ private final class UpdateDialogReviewBackend: AppUpdaterBackend {
 
     func start() throws {}
     func checkInformation() {
+        owner?.recordFeedVerification(true)
         owner?.foundUpdate("1.3.4", publishedAt: publication)
         owner?.finishedCheck()
     }
